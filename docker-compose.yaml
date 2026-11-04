@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: users-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-users}
+    ports:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-users}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  users-service:
+    build:
+      context: ./backend
+      dockerfile: users-service/Dockerfile
+    image: users-service:latest
+    container_name: users-service
+    restart: unless-stopped
+    environment:
+      ENV: prod
+      CONFIG_FILE: /app/.config/prod.json
+      SEED: ${SEED:-100}
+    ports:
+      - "8100:8100"
+    depends_on:
+      users-db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

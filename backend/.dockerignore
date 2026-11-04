@@ -1,0 +1,8 @@
+*
+!shared/
+!shared/**
+!users-service/
+!users-service/**
+users-service/.idea/
+users-service/.idea/**
+users-service/.config/local.json
