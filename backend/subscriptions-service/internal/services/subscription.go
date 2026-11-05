@@ -2,10 +2,11 @@ package services
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"time"
 
 	"subscriptions-service/internal/domain"
+	subscription_errors "subscriptions-service/internal/errors/subscription"
 	"subscriptions-service/internal/handlers/request"
 	"subscriptions-service/internal/handlers/response"
 )
@@ -15,11 +16,12 @@ type ISubscriptionRepo interface {
 }
 
 type SubscriptionService struct {
-	repo ISubscriptionRepo
+	repo   ISubscriptionRepo
+	logger *slog.Logger
 }
 
-func NewSubscriptionService(repo ISubscriptionRepo) *SubscriptionService {
-	return &SubscriptionService{repo: repo}
+func NewSubscriptionService(repo ISubscriptionRepo, logger *slog.Logger) *SubscriptionService {
+	return &SubscriptionService{repo: repo, logger: logger}
 }
 
 func (s *SubscriptionService) GetSubscriptions(ctx context.Context, filter *request.SubscriptionFilter) (response.SubscriptionsResponsePaged, error) {
@@ -29,7 +31,8 @@ func (s *SubscriptionService) GetSubscriptions(ctx context.Context, filter *requ
 
 	subs, total, err := s.repo.GetSubscriptions(ctx, pageSize, offset, filter.UpdatedSince)
 	if err != nil {
-		return response.SubscriptionsResponsePaged{}, fmt.Errorf("get subscriptions: %w", err)
+		s.logger.Error("repo error", "method", "GetSubscriptions", "page", page, "page_size", pageSize, "error", err)
+		return response.SubscriptionsResponsePaged{}, subscription_errors.ErrGetSubscriptions
 	}
 
 	result := make([]response.SubscriptionResponse, 0, len(subs))
@@ -37,7 +40,6 @@ func (s *SubscriptionService) GetSubscriptions(ctx context.Context, filter *requ
 		result = append(result, mapToSubscriptionResponse(sub))
 	}
 
-	// количество страниц, округление вверх
 	totalPages := (total + int64(pageSize) - 1) / int64(pageSize)
 
 	return response.SubscriptionsResponsePaged{

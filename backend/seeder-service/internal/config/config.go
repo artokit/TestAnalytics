@@ -11,29 +11,20 @@ const (
 	defaultUsers     = 10000
 	defaultBatchSize = 500
 	defaultHistory   = 24
-	usersDBOriginal  = "user=postgres password=postgres host=localhost port=5432 dbname=postgres sslmode=disable"
-	subsDBOriginal   = "user=postgres password=postgres host=localhost port=5432 dbname=subscriptions-service sslmode=disable"
-	paysDBOriginal   = "user=postgres password=postgres host=localhost port=5432 dbname=payments-service sslmode=disable"
+	usersDBDefault   = "user=postgres password=postgres host=localhost port=5432 dbname=users-service sslmode=disable"
+	subsDBDefault    = "user=postgres password=postgres host=localhost port=5432 dbname=subscriptions-service sslmode=disable"
+	paysDBDefault    = "user=postgres password=postgres host=localhost port=5432 dbname=payments-service sslmode=disable"
 )
 
-// Config - конфигурация seeder'а. Только через env (согласно заданию).
 type Config struct {
-	// Seed - seed детерминированной генерации.
-	Seed int64
-	// Users - сколько пользователей (users) сгенерировать и залить.
-	Users int
-	// BatchSize - размер батча вставки в строках.
-	BatchSize int
-	// HistoryMonths - глубина истории (18-24 месяца по требованиям).
-	HistoryMonths int
-	// DatabaseDSN - DSN сервиса users (таблица users).
-	DatabaseDSN string
-	// SubsDatabaseDSN - DSN subscriptions-service (таблица subscriptions).
-	SubsDatabaseDSN string
-	// PaymentsDatabaseDSN - DSN payments-service (таблица payments).
+	Seed                int64
+	Users               int
+	BatchSize           int
+	HistoryMonths       int
+	DatabaseDSN         string
+	SubsDatabaseDSN     string
 	PaymentsDatabaseDSN string
-	// Force - если таблица не пустая: пересоздать данные вместо выхода.
-	Force bool
+	Force               bool
 }
 
 func FromEnv() (*Config, error) {
@@ -42,9 +33,9 @@ func FromEnv() (*Config, error) {
 		Users:               defaultUsers,
 		BatchSize:           defaultBatchSize,
 		HistoryMonths:       defaultHistory,
-		DatabaseDSN:         usersDBOriginal,
-		SubsDatabaseDSN:     subsDBOriginal,
-		PaymentsDatabaseDSN: paysDBOriginal,
+		DatabaseDSN:         usersDBDefault,
+		SubsDatabaseDSN:     subsDBDefault,
+		PaymentsDatabaseDSN: paysDBDefault,
 	}
 
 	if v := os.Getenv("SEED"); v != "" {
@@ -93,7 +84,7 @@ func FromEnv() (*Config, error) {
 
 	switch v := os.Getenv("FORCE"); v {
 	case "":
-		// оставляем false
+		cfg.Force = false
 	case "1", "true", "True", "TRUE", "yes":
 		cfg.Force = true
 	case "0", "false", "False", "FALSE", "no":
@@ -109,19 +100,13 @@ func FromEnv() (*Config, error) {
 	return cfg, nil
 }
 
-// maxBatchSize выбран так, чтобы одна multi-row INSERT не пробила
-// лимит протокола Postgres на количество параметров (65535):
-// 4 параметра на строку * 4096 строк = 16384 < 65535,
-// 9 параметров (payments) * 4096 строк = 36864 < 65535.
 const maxBatchSize = 4096
 
-// minHistoryMonths / maxHistoryMonths - требование задания: 18-24 месяца.
 const (
 	minHistoryMonths = 18
 	maxHistoryMonths = 24
 )
 
-// minUsers - требование задания: не меньше 10000 пользователей.
 const minUsers = 10000
 
 func (c *Config) validate() error {

@@ -9,6 +9,7 @@ import (
 	"payments-service/internal/repo/payment"
 	"payments-service/internal/services"
 	"test_analytics/shared/database"
+	"test_analytics/shared/httputil"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -31,6 +32,12 @@ func NewServerBuilder(logger *slog.Logger, store *database.Storage, config *conf
 }
 
 func (b *ServerBuilder) Build() *http.Server {
+	faults, err := httputil.NewFaultsFromEnv()
+	if err != nil {
+		panic(fmt.Sprintf("faults config: %v", err))
+	}
+	b.router.Use(faults.Middleware)
+
 	b.initHandlers()
 	addr := fmt.Sprintf("%s:%d", b.config.Address, b.config.Port)
 	b.logger.Info("listening", "addr", addr)

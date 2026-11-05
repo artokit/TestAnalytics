@@ -1,10 +1,10 @@
 package request
 
 import (
-	"errors"
 	"net/http"
 	"time"
 
+	subscription_errors "subscriptions-service/internal/errors/subscription"
 	"test_analytics/shared/httputil"
 )
 
@@ -24,17 +24,17 @@ type SubscriptionFilter struct {
 func GetSubscriptionFilter(r *http.Request) (*SubscriptionFilter, error) {
 	page, err := httputil.ReadIntQuery(r, "page", DefaultPage)
 	if err != nil {
-		return nil, errors.New("неверно передан параметр page")
+		return nil, subscription_errors.ErrInvalidPage
 	}
 
 	pageSize, err := httputil.ReadIntQuery(r, "page_size", DefaultPageSize)
 	if err != nil {
-		return nil, errors.New("неверно передан параметр page_size")
+		return nil, subscription_errors.ErrInvalidPageSize
 	}
 
 	updatedSince, err := httputil.ReadTimeQuery(r, "updated_since")
 	if err != nil {
-		return nil, errors.New("неверно передан параметр updated_since, expected RFC3339")
+		return nil, subscription_errors.ErrInvalidUpdatedSince
 	}
 
 	return &SubscriptionFilter{
