@@ -1,0 +1,142 @@
+name: test-analytics-local
+
+configs:
+  postgres_init:
+    content: |
+      CREATE DATABASE "users";
+      CREATE DATABASE "subscriptions-service";
+      CREATE DATABASE "payments-service";
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: local-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - local_postgres_data:/var/lib/postgresql/data
+    configs:
+      - source: postgres_init
+        target: /docker-entrypoint-initdb.d/10-databases.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    container_name: local-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  users-service:
+    image: golang:1.27-alpine
+    working_dir: /src/users-service
+    restart: unless-stopped
+    environment:
+      ENV: prod
+    volumes:
+      - ./backend:/src
+      - go_mod_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
+    command: sh -c "go mod download && go run ./cmd/app"
+    ports:
+      - "8002:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/users >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  payments-service:
+    image: golang:1.27-alpine
+    working_dir: /src/payments-service
+    restart: unless-stopped
+    environment:
+      ENV: prod
+    volumes:
+      - ./backend:/src
+      - go_mod_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
+    command: sh -c "go mod download && go run ./cmd/app"
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8003/payments >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  subscriptions-service:
+    image: golang:1.27-alpine
+    working_dir: /src/subscriptions-service
+    restart: unless-stopped
+    environment:
+      ENV: prod
+    volumes:
+      - ./backend:/src
+      - go_mod_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
+    command: sh -c "go mod download && go run ./cmd/app"
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8001/subscriptions >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  seeder:
+    build:
+      context: ./backend/seeder-service
+      dockerfile: Dockerfile
+    image: seeder-service:latest
+    restart: "no"
+    profiles:
+      - seed
+    environment:
+      SEED: ${SEED:-42}
+      SEED_USERS: ${SEED_USERS:-10000}
+      SEED_BATCH_SIZE: ${SEED_BATCH_SIZE:-500}
+      FORCE: ${FORCE:-0}
+      DATABASE_DSN: user=postgres password=postgres host=postgres port=5432 dbname=users sslmode=disable
+      DATABASE_DSN_SUBSCRIPTIONS: user=postgres password=postgres host=postgres port=5432 dbname=subscriptions-service sslmode=disable
+      DATABASE_DSN_PAYMENTS: user=postgres password=postgres host=postgres port=5432 dbname=payments-service sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+      users-service:
+        condition: service_healthy
+      payments-service:
+        condition: service_healthy
+      subscriptions-service:
+        condition: service_healthy
+
+volumes:
+  local_postgres_data:
+  go_mod_cache:
+  go_build_cache:
