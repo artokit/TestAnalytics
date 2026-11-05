@@ -18,26 +18,13 @@ import (
 // @Router       /status [get]
 func GetStatus(worker *worker.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		lastPoll, nextPoll, lastErr := worker.Status()
+		lastPoll, nextPoll, ready, lastSyncErr := worker.Status()
 
 		httputil.WriteJSON(w, response.StatusResponse{
-			Ready:       worker.Ready(),
+			Ready:       ready,
 			LastPoll:    lastPoll,
 			NextPoll:    nextPoll,
-			LastSyncErr: lastErr,
+			LastSyncErr: lastSyncErr,
 		}, http.StatusOK)
-	}
-}
-
-// Healthz godoc
-// @Summary      Живость сервиса
-// @Description  200 если процесс отвечает
-// @Tags         system
-// @Produce      json
-// @Success      200 {object} response.HealthzResponse
-// @Router       /healthz [get]
-func Healthz() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		httputil.WriteJSON(w, response.HealthzResponse{Status: "ok"}, http.StatusOK)
 	}
 }

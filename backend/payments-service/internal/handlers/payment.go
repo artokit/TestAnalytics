@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"payments-service/internal/handlers/request"
 	"payments-service/internal/handlers/response"
-	"test_analytics/shared/httputil"
+	"shared/httputil"
 )
 
 type IPaymentService interface {

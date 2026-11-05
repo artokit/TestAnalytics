@@ -45,8 +45,10 @@ export function LtvSummaryWidget() {
           <StateMessage error title="Не удалось получить данные" description={errorMessage(error)} />
         )
       )}
-      {!isLoading && data && (
-        <div className="grid grid-cols-2 gap-3">
+      {!isLoading && error === null && data && (
+        <div
+          className={`grid grid-cols-2 gap-3 transition-opacity ${isFetching ? 'opacity-60' : 'opacity-100'}`}
+        >
           <div className="flex flex-col gap-1.5 rounded-[10px] bg-surface2 p-3.5">
             <span className="text-xs text-muted">Средний LTV</span>
             <span className="text-xl font-bold text-ink">{formatMoney(data.metrics.avg_ltv)}</span>

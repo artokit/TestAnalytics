@@ -3,9 +3,9 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"shared/httputil"
 	"subscriptions-service/internal/handlers/request"
 	"subscriptions-service/internal/handlers/response"
-	"test_analytics/shared/httputil"
 )
 
 type ISubscriptionService interface {

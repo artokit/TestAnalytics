@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	"shared/httputil"
 	"subscriptions-service/internal/handlers/response"
-	"test_analytics/shared/httputil"
 )
 
 type IPlanService interface {

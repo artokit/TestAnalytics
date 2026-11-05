@@ -13,7 +13,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8004',
+        target: process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8004',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ''),
       },

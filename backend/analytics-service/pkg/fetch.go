@@ -1,4 +1,4 @@
-package syncer
+package pkg
 
 import (
 	"context"
@@ -12,7 +12,7 @@ const (
 	backoffBase   = 250 * time.Millisecond
 )
 
-func requestWithRetry[T any](ctx context.Context, do func() (T, error)) (T, error) {
+func RequestWithRetry[T any](ctx context.Context, do func() (T, error)) (T, error) {
 	var out T
 	var lastErr error
 

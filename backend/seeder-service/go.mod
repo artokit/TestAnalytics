@@ -5,7 +5,7 @@ go 1.27
 require (
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
-	test_analytics/shared v1.0.0
+	shared v1.0.0
 )
 
 require (
@@ -17,4 +17,4 @@ require (
 	golang.org/x/sync v0.24.0 // indirect
 )
 
-replace test_analytics/shared => ../shared
+replace shared => ../shared

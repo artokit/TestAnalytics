@@ -1,11 +1,11 @@
-package request
+﻿package request
 
 import (
 	"net/http"
 	"payments-service/internal/errors"
 	"time"
 
-	"test_analytics/shared/httputil"
+	"shared/httputil"
 )
 
 const (

@@ -4,14 +4,11 @@ import type {
   Retention,
   SyncStatus,
 } from '@/entities/metrics/types'
-import { http } from '@/shared/api/http'
+import { getWithEtag, http } from '@/shared/api/http'
 
 export const metricsApi = {
   async summary(from?: string, to?: string): Promise<LtvSummary> {
-    const res = await http.get<LtvSummary>('/metrics/ltv/summary', {
-      params: { from: from ?? '', to: to ?? '' },
-    })
-    return res.data
+    return getWithEtag<LtvSummary>('/metrics/ltv/summary', { from: from ?? '', to: to ?? '' })
   },
   async retention(
     planId: number,
@@ -19,10 +16,12 @@ export const metricsApi = {
     from?: string,
     to?: string,
   ): Promise<Retention> {
-    const res = await http.get<Retention>('/metrics/retention', {
-      params: { plan_id: planId, max_periods: maxPeriods, from: from ?? '', to: to ?? '' },
+    return getWithEtag<Retention>('/metrics/retention', {
+      plan_id: planId,
+      max_periods: maxPeriods,
+      from: from ?? '',
+      to: to ?? '',
     })
-    return res.data
   },
   async status(): Promise<SyncStatus> {
     const res = await http.get<SyncStatus>('/status')

@@ -2,11 +2,24 @@
 FROM golang:1.27-alpine AS build
 WORKDIR /src
 
-COPY go.mod go.sum ./
-RUN go mod download
+COPY shared/ ./shared/
 
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /bin/seeder ./cmd/seeder
+COPY seeder-service/go.mod seeder-service/go.sum ./seeder-service/
+
+WORKDIR /src/seeder-service
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+COPY seeder-service/ ./
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build \
+      -trimpath \
+      -ldflags="-s -w" \
+      -o /bin/seeder \
+      ./cmd/seeder
 
 # --- runtime ---
 FROM scratch

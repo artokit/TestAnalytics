@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"shared/database"
 	"shared/httputil"
+	middleware "shared/httputil/middleware"
+	middleware_config "shared/httputil/middleware/config"
 	"time"
 	"users-service/config"
 	"users-service/internal/handlers"
@@ -32,11 +34,13 @@ func NewServerBuilder(logger *slog.Logger, store *database.Storage, config *conf
 }
 
 func (b *ServerBuilder) Build() *http.Server {
-	faults, err := httputil.NewFaultsFromEnv()
+	cfg, err := middleware_config.FaultsConfigFromEnv()
 	if err != nil {
 		panic(fmt.Sprintf("faults config: %v", err))
 	}
-	b.router.Use(faults.Middleware)
+
+	faults := middleware.NewFaults(cfg.ErrorRate500, cfg.ErrorRate429, cfg.RetryAfter)
+	b.router.Use(middleware.HealthSafe(faults.Middleware))
 
 	b.initHandlers()
 	addr := fmt.Sprintf("%s:%d", b.config.Address, b.config.Port)
@@ -56,4 +60,6 @@ func (b *ServerBuilder) initHandlers() {
 	usersRepo := user.NewRepo(b.store.Db)
 	usersService := services.New(usersRepo, b.logger)
 	b.router.HandleFunc("/users", handlers.GetUsers(usersService)).Methods(http.MethodGet)
+
+	b.router.HandleFunc("/healthz", httputil.Healthz()).Methods(http.MethodGet)
 }

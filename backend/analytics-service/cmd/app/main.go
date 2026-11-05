@@ -15,6 +15,7 @@ import (
 	"analytics-service/internal/app"
 	"analytics-service/internal/cache"
 	"analytics-service/internal/services"
+	"analytics-service/internal/storage"
 	worker "analytics-service/internal/worker"
 	"analytics-service/pkg"
 
@@ -47,14 +48,17 @@ func main() {
 
 	cacheRepo := cache.NewCache(rdb, 24*time.Hour)
 	metricsService := services.NewMetricsService(cacheRepo)
-	metricsRead := services.NewMetricsReadService(cacheRepo)
+	metricsRead := services.NewMetricsReadService(cacheRepo, cfg.Sync.Interval)
+	userStorage := storage.NewUserStorage()
+	paymentStorage := storage.NewPaymentStorage()
+	subStorage := storage.NewSubscriptionStorage()
+	planStorage := storage.NewPlanStorage()
 
-	hc := httpclient.NewHttpClient(&http.Client{Timeout: 10 * time.Second})
-	usersService := services.NewUserService(hc, cfg)
-	paymentsService := services.NewPaymentService(hc, cfg)
-	subsService := services.NewSubscriptionService(hc, cfg)
-	planService := services.NewPlanService(hc, cfg)
-	worker := worker.New(logger, cfg.Sync, usersService, paymentsService, subsService, planService, metricsService)
+	hc := pkg.NewHttpClient(&http.Client{Timeout: 10 * time.Second})
+	usersService := services.NewUserService(hc, logger, cfg)
+	paymentsService := services.NewPaymentService(hc, logger, cfg)
+	subsService := services.NewSubscriptionService(hc, logger, cfg)
+	worker := worker.New(logger, cfg.Sync, userStorage, paymentStorage, subStorage, planStorage, usersService, paymentsService, subsService, metricsService)
 	go worker.Run(ctx)
 
 	server := app.NewServerBuilder(logger, worker, metricsRead, cfg).Build()

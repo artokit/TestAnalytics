@@ -3,17 +3,34 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
+var ErrNotFound = errors.New("cache: snapshot not found")
+
 const (
-	summaryKey   = "analytics:ltv:summary"
-	retentionKey = "analytics:retention"
+	summaryKey     = "analytics:ltv:summary"
+	retentionKey   = "analytics:retention"
 	userMetricsKey = "analytics:users:metrics"
+	computedPrefix = "analytics:computed:"
 )
+
+func computedKey(key string) string {
+	return computedPrefix + key
+}
+
+type Cache interface {
+	SaveSummary(ctx context.Context, summary SummaryPayload) error
+	SaveRetention(ctx context.Context, retentions []RetentionPayload) error
+	SaveUserMetrics(ctx context.Context, snapshot UserMetricsSnapshot) error
+	GetUserMetrics(ctx context.Context) (UserMetricsSnapshot, error)
+	SaveComputed(ctx context.Context, key string, value any) error
+	GetComputed(ctx context.Context, key string, dst any) error
+}
 
 type RedisCache struct {
 	rdb *redis.Client
@@ -33,21 +50,6 @@ type SummaryPayload struct {
 	MedianLtv    int64     `json:"median_ltv"`
 	TotalRevenue int64     `json:"total_revenue"`
 	Users        int       `json:"users"`
-}
-
-type RetentionPeriodPayload struct {
-	Period         int     `json:"period"`
-	Eligible       int     `json:"eligible"`
-	Renewed        int     `json:"renewed"`
-	Rate           float64 `json:"rate"`
-	CumulativeRate float64 `json:"cumulative_rate"`
-}
-
-type RetentionPayload struct {
-	PlanId     int16                   `json:"plan_id"`
-	DataAsOf   time.Time               `json:"data_as_of"`
-	CohortSize int                     `json:"cohort_size"`
-	Periods    []RetentionPeriodPayload `json:"periods"`
 }
 
 func (c *RedisCache) SaveSummary(ctx context.Context, summary SummaryPayload) error {
@@ -76,38 +78,38 @@ func (c *RedisCache) SaveRetention(ctx context.Context, retentions []RetentionPa
 	return nil
 }
 
-func (c *RedisCache) GetSummary(ctx context.Context) (SummaryPayload, bool, error) {
+func (c *RedisCache) GetSummary(ctx context.Context) (SummaryPayload, error) {
 	raw, err := c.rdb.Get(ctx, summaryKey).Result()
-	if isMiss(err) {
-		return SummaryPayload{}, false, nil
+	if err == redis.Nil {
+		return SummaryPayload{}, ErrNotFound
 	}
 	if err != nil {
-		return SummaryPayload{}, false, fmt.Errorf("cache: get summary: %w", err)
+		return SummaryPayload{}, fmt.Errorf("cache: get summary: %w", err)
 	}
 
 	var summary SummaryPayload
 	if err := json.Unmarshal([]byte(raw), &summary); err != nil {
-		return SummaryPayload{}, false, fmt.Errorf("cache: unmarshal summary: %w", err)
+		return SummaryPayload{}, fmt.Errorf("cache: unmarshal summary: %w", err)
 	}
 
-	return summary, true, nil
+	return summary, nil
 }
 
-func (c *RedisCache) GetRetention(ctx context.Context) ([]RetentionPayload, bool, error) {
+func (c *RedisCache) GetRetention(ctx context.Context) ([]RetentionPayload, error) {
 	raw, err := c.rdb.Get(ctx, retentionKey).Result()
-	if isMiss(err) {
-		return nil, false, nil
+	if err == redis.Nil {
+		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("cache: get retention: %w", err)
+		return nil, fmt.Errorf("cache: get retention: %w", err)
 	}
 
 	var retentions []RetentionPayload
 	if err := json.Unmarshal([]byte(raw), &retentions); err != nil {
-		return nil, false, fmt.Errorf("cache: unmarshal retention: %w", err)
+		return nil, fmt.Errorf("cache: unmarshal retention: %w", err)
 	}
 
-	return retentions, true, nil
+	return retentions, nil
 }
 
 func (c *RedisCache) SaveUserMetrics(ctx context.Context, snapshot UserMetricsSnapshot) error {
@@ -123,23 +125,48 @@ func (c *RedisCache) SaveUserMetrics(ctx context.Context, snapshot UserMetricsSn
 	return nil
 }
 
-func (c *RedisCache) GetUserMetrics(ctx context.Context) (UserMetricsSnapshot, bool, error) {
+func (c *RedisCache) GetUserMetrics(ctx context.Context) (UserMetricsSnapshot, error) {
 	raw, err := c.rdb.Get(ctx, userMetricsKey).Result()
-	if isMiss(err) {
-		return UserMetricsSnapshot{}, false, nil
+	if err == redis.Nil {
+		return UserMetricsSnapshot{}, ErrNotFound
 	}
 	if err != nil {
-		return UserMetricsSnapshot{}, false, fmt.Errorf("cache: get users metrics: %w", err)
+		return UserMetricsSnapshot{}, fmt.Errorf("cache: get users metrics: %w", err)
 	}
 
 	var snapshot UserMetricsSnapshot
 	if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
-		return UserMetricsSnapshot{}, false, fmt.Errorf("cache: unmarshal users metrics: %w", err)
+		return UserMetricsSnapshot{}, fmt.Errorf("cache: unmarshal users metrics: %w", err)
 	}
 
-	return snapshot, true, nil
+	return snapshot, nil
 }
 
-func isMiss(err error) bool {
-	return err == redis.Nil
+func (c *RedisCache) SaveComputed(ctx context.Context, key string, value any) error {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("cache: marshal %s: %w", key, err)
+	}
+
+	if err := c.rdb.Set(ctx, computedKey(key), raw, c.ttl).Err(); err != nil {
+		return fmt.Errorf("cache: set %s: %w", key, err)
+	}
+
+	return nil
+}
+
+func (c *RedisCache) GetComputed(ctx context.Context, key string, dst any) error {
+	raw, err := c.rdb.Get(ctx, computedKey(key)).Result()
+	if err == redis.Nil {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("cache: get %s: %w", key, err)
+	}
+
+	if err := json.Unmarshal([]byte(raw), dst); err != nil {
+		return fmt.Errorf("cache: unmarshal %s: %w", key, err)
+	}
+
+	return nil
 }

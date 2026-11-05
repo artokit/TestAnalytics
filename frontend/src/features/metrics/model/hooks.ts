@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { metricsApi } from '../api/metrics.api'
 
 const POLL_INTERVAL = 10_000
@@ -9,6 +9,7 @@ export function useSummary(range?: DateRange) {
   return useQuery({
     queryKey: ['metrics', 'ltv-summary', range?.from ?? '', range?.to ?? ''],
     queryFn: () => metricsApi.summary(range?.from, range?.to),
+    placeholderData: keepPreviousData,
     refetchInterval: POLL_INTERVAL,
     retry: 1,
   })
@@ -25,6 +26,7 @@ export function useRetention(planId: number, maxPeriods: number, range?: DateRan
       range?.to ?? '',
     ],
     queryFn: () => metricsApi.retention(planId, maxPeriods, range?.from, range?.to),
+    placeholderData: keepPreviousData,
     refetchInterval: POLL_INTERVAL,
     retry: 1,
     enabled: planId > 0,

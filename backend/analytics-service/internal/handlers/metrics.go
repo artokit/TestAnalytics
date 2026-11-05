@@ -1,61 +1,20 @@
 package handlers
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
+	"analytics-service/internal/handlers/request"
 	"analytics-service/internal/handlers/response"
 	"analytics-service/internal/services"
+	worker "analytics-service/internal/worker"
 
 	"shared/httputil"
 )
 
-const defaultMaxPeriods = 12
-
-func snapshotNotReady(w http.ResponseWriter) {
-	w.Header().Set("Retry-After", "60")
-	httputil.WriteJSON(w, map[string]string{
-		"error": "data snapshot is not ready yet, try again later",
-	}, http.StatusServiceUnavailable)
-}
-
-func parseFromTo(r *http.Request) (*time.Time, *time.Time, error) {
-	query := r.URL.Query()
-
-	var from, to *time.Time
-
-	if raw := query.Get("from"); raw != "" {
-		t, err := time.Parse(time.RFC3339, raw)
-		if err != nil {
-			return nil, nil, fmt.Errorf("неверно передан параметр from, expected RFC3339")
-		}
-		from = &t
-	}
-
-	if raw := query.Get("to"); raw != "" {
-		t, err := time.Parse(time.RFC3339, raw)
-		if err != nil {
-			return nil, nil, fmt.Errorf("неверно передан параметр to, expected RFC3339")
-		}
-		to = &t
-	}
-
-	return from, to, nil
-}
-
-func writeCached(w http.ResponseWriter, r *http.Request, dataAsOf time.Time, body any) {
-	etag := `"` + dataAsOf.Format(time.RFC3339Nano) + `"`
-	w.Header().Set("ETag", etag)
-	w.Header().Set("Last-Modified", dataAsOf.UTC().Format(http.TimeFormat))
-	if r.Header.Get("If-None-Match") == etag {
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
-
-	httputil.WriteJSON(w, body, http.StatusOK)
-}
+const maxCacheControlAgeSeconds = 600
 
 // GetLtvSummary godoc
 // @Summary      Общий LTV по всем пользователям
@@ -68,25 +27,25 @@ func writeCached(w http.ResponseWriter, r *http.Request, dataAsOf time.Time, bod
 // @Failure      400 {object} httputil.ErrorResponse
 // @Failure      503 {string} string "снимок ещё не собран"
 // @Router       /metrics/ltv/summary [get]
-func GetLtvSummary(readService *services.MetricsReadService) http.HandlerFunc {
+func GetLtvSummary(readService *services.MetricsReadService, syncer *worker.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		from, to, err := parseFromTo(r)
+		filter, err := request.GetMetricsFilter(r)
 		if err != nil {
 			httputil.WriteError(w, err, http.StatusBadRequest)
 			return
 		}
 
-		summary, found, err := readService.Summary(r.Context(), from, to)
+		summary, err := readService.Summary(r.Context(), filter.From, filter.To)
 		if err != nil {
+			if errors.Is(err, services.ErrSnapshotNotReady) {
+				snapshotNotReady(w)
+				return
+			}
 			httputil.WriteError(w, err, http.StatusInternalServerError)
 			return
 		}
-		if !found {
-			snapshotNotReady(w)
-			return
-		}
 
-		writeCached(w, r, summary.DataAsOf, response.LtvSummaryResponse{
+		writeCached(w, r, summary.DataAsOf, syncer.NextPoll(), response.LtvSummaryResponse{
 			DataAsOf: summary.DataAsOf,
 			Metrics: response.LtvSummaryMetrics{
 				AvgLtv:       summary.AvgLtv,
@@ -112,42 +71,21 @@ func GetLtvSummary(readService *services.MetricsReadService) http.HandlerFunc {
 // @Failure      503 {string} string "снимок ещё не собран"
 // @Failure      304
 // @Router       /metrics/retention [get]
-func GetRetention(readService *services.MetricsReadService) http.HandlerFunc {
+func GetRetention(readService *services.MetricsReadService, syncer *worker.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-
-		planId, err := strconv.Atoi(query.Get("plan_id"))
+		filter, err := request.GetRetentionFilter(r)
 		if err != nil {
 			httputil.WriteError(w, err, http.StatusBadRequest)
 			return
 		}
 
-		maxPeriods := defaultMaxPeriods
-		if raw := query.Get("max_periods"); raw != "" {
-			maxPeriods, err = strconv.Atoi(raw)
-			if err != nil {
-				httputil.WriteError(w, err, http.StatusBadRequest)
+		plan, err := readService.Retention(r.Context(), filter.PlanId, filter.From, filter.To, filter.MaxPeriods)
+		if err != nil {
+			if errors.Is(err, services.ErrSnapshotNotReady) {
+				snapshotNotReady(w)
 				return
 			}
-			if maxPeriods < 1 {
-				httputil.WriteError(w, fmt.Errorf("max_periods must be >= 1"), http.StatusBadRequest)
-				return
-			}
-		}
-
-		from, to, err := parseFromTo(r)
-		if err != nil {
-			httputil.WriteError(w, err, http.StatusBadRequest)
-			return
-		}
-
-		plan, found, err := readService.Retention(r.Context(), int16(planId), from, to, maxPeriods)
-		if err != nil {
 			httputil.WriteError(w, err, http.StatusInternalServerError)
-			return
-		}
-		if !found {
-			snapshotNotReady(w)
 			return
 		}
 
@@ -169,7 +107,7 @@ func GetRetention(readService *services.MetricsReadService) http.HandlerFunc {
 			})
 		}
 
-		writeCached(w, r, plan.DataAsOf, response.RetentionResponse{
+		writeCached(w, r, plan.DataAsOf, syncer.NextPoll(), response.RetentionResponse{
 			PlanId:     plan.PlanId,
 			DataAsOf:   plan.DataAsOf,
 			CohortSize: plan.CohortSize,
@@ -188,4 +126,35 @@ func GetLtvByPlan() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		snapshotNotReady(w)
 	}
+}
+
+func snapshotNotReady(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "60")
+	httputil.WriteJSON(w, map[string]string{
+		"error": "data snapshot is not ready yet, try again later",
+	}, http.StatusServiceUnavailable)
+}
+
+func writeCached(w http.ResponseWriter, r *http.Request, dataAsOf time.Time, nextPoll time.Time, body any) {
+	etag := `"` + dataAsOf.UTC().Format(time.RFC3339Nano) + `"`
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Last-Modified", dataAsOf.UTC().Format(http.TimeFormat))
+
+	if !nextPoll.IsZero() {
+		maxAge := int(time.Until(nextPoll).Seconds())
+		if maxAge < 0 {
+			maxAge = 0
+		}
+		if maxAge > maxCacheControlAgeSeconds {
+			maxAge = maxCacheControlAgeSeconds
+		}
+		w.Header().Set("Cache-Control", "max-age="+strconv.Itoa(maxAge))
+	}
+
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
+	httputil.WriteJSON(w, body, http.StatusOK)
 }

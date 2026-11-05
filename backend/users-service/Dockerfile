@@ -34,14 +34,15 @@ WORKDIR /app
 
 COPY --from=build --chown=app:app /out/users-service /app/users-service
 COPY --chown=app:app users-service/.config/prod.json /app/.config/prod.json
+COPY --chown=app:app users-service/migrations /app/migrations
 
 USER app
 
 ENV CONFIG_FILE=/app/.config/prod.json
 
-EXPOSE 8100
+EXPOSE 80
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget -qO- http://127.0.0.1:8100/users >/dev/null || exit 1
+    CMD wget -qO- http://127.0.0.1:80/healthz >/dev/null || exit 1
 
 ENTRYPOINT ["./users-service"]
