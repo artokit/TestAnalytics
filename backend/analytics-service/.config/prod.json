@@ -1,0 +1,13 @@
+{
+  "address": "0.0.0.0",
+  "port": 80,
+  "redis": {
+    "address": "redis:6379"
+  },
+  "sync": {
+    "interval": "10m",
+    "payments_url": "http://payments-service:80",
+    "users_url": "http://users-service:80",
+    "subscriptions_url": "http://subscriptions-service:80"
+  }
+}

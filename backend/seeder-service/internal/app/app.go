@@ -15,7 +15,7 @@ import (
 	"seeder-service/internal/repo/payment"
 	"seeder-service/internal/repo/subscription"
 	"seeder-service/internal/repo/user"
-	"test_analytics/shared/database"
+	"shared/database"
 )
 
 func Run(ctx context.Context) error {

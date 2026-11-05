@@ -10,7 +10,7 @@ import (
 	"payments-service/config"
 	"payments-service/internal/app"
 	"syscall"
-	"test_analytics/shared/database"
+	"shared/database"
 	"time"
 )
 

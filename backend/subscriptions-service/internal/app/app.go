@@ -6,13 +6,14 @@ import (
 	"net/http"
 	"time"
 
+	"shared/database"
+	"shared/httputil"
+	middleware "shared/httputil/middleware"
+	middleware_config "shared/httputil/middleware/config"
 	"subscriptions-service/config"
-	_ "subscriptions-service/docs"
 	"subscriptions-service/internal/handlers"
 	"subscriptions-service/internal/repo/subscription"
 	"subscriptions-service/internal/services"
-	"test_analytics/shared/database"
-	"test_analytics/shared/httputil"
 
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -35,11 +36,13 @@ func NewServerBuilder(logger *slog.Logger, store *database.Storage, config *conf
 }
 
 func (b *ServerBuilder) Build() *http.Server {
-	faults, err := httputil.NewFaultsFromEnv()
+	cfg, err := middleware_config.FaultsConfigFromEnv()
 	if err != nil {
 		panic(fmt.Sprintf("faults config: %v", err))
 	}
-	b.router.Use(faults.Middleware)
+
+	faults := middleware.NewFaults(cfg.ErrorRate500, cfg.ErrorRate429, cfg.RetryAfter)
+	b.router.Use(middleware.HealthSafe(faults.Middleware))
 
 	b.initHandlers()
 	addr := fmt.Sprintf("%s:%d", b.config.Address, b.config.Port)
@@ -69,4 +72,6 @@ func (b *ServerBuilder) initHandlers() {
 	subsRepo := subscription.NewRepo(b.store.Db)
 	subsService := services.NewSubscriptionService(subsRepo, b.logger)
 	b.router.HandleFunc("/subscriptions", handlers.GetSubscriptions(subsService)).Methods(http.MethodGet)
+
+	b.router.HandleFunc("/healthz", httputil.Healthz()).Methods(http.MethodGet)
 }

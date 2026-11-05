@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	"shared/httputil"
 	subscription_errors "subscriptions-service/internal/errors/subscription"
-	"test_analytics/shared/httputil"
 )
 
 const (

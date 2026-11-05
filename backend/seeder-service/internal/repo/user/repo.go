@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"seeder-service/internal/models"
-	"test_analytics/shared/database"
+	"shared/database"
 )
 
 //go:embed "sql/count_users.sql"

@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"shared/database"
 	"subscriptions-service/config"
 	"subscriptions-service/internal/app"
-	"test_analytics/shared/database"
 )
 
 func main() {

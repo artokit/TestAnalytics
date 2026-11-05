@@ -35,7 +35,3 @@ type StatusResponse struct {
 	NextPoll    time.Time `json:"next_poll"`
 	LastSyncErr string    `json:"last_sync_err,omitempty"`
 }
-
-type HealthzResponse struct {
-	Status string `json:"status"`
-}

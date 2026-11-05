@@ -6,9 +6,8 @@
   },
   "sync": {
     "interval": "10s",
-    "payments_url": "http://127.0.0.1:8003/payments",
-    "users_url": "http://127.0.0.1:8002/users",
-    "subscriptions_url": "http://127.0.0.1:8001/subscriptions",
-    "plans_url": "http://127.0.0.1:8001/plans"
+    "payments_url": "http://127.0.0.1:8003",
+    "users_url": "http://127.0.0.1:8002",
+    "subscriptions_url": "http://127.0.0.1:8001"
   }
 }

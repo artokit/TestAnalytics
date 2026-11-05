@@ -1,6 +1,6 @@
 package config
 
-import "test_analytics/shared/config"
+import "shared/config"
 
 type DatabaseConfig struct {
 	ConnectionString string `json:"connection_string"`

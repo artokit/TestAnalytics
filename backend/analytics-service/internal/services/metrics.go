@@ -160,7 +160,6 @@ func buildRetention(
 		renewed    [maxPeriods]int
 	}
 
-	// цепочка подписок каждого пользователя, отсортированная по period_start
 	chains := make(map[string][]domain.Subscription, len(subs))
 	firstPlan := make(map[string]int16, len(subs))
 	for _, sub := range subs {

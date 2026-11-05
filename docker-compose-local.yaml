@@ -19,7 +19,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - local_postgres_data:/var/lib/postgresql/data
+      - local_postgres_data:/var/lib/postgresql
     configs:
       - source: postgres_init
         target: /docker-entrypoint-initdb.d/10-databases.sql
@@ -58,7 +58,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/users >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/healthz >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -76,12 +76,12 @@ services:
       - go_build_cache:/root/.cache/go-build
     command: sh -c "go mod download && go run ./cmd/app"
     ports:
-      - "8003:8003"
+      - "8003:80"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8003/payments >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/healthz >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -99,12 +99,41 @@ services:
       - go_build_cache:/root/.cache/go-build
     command: sh -c "go mod download && go run ./cmd/app"
     ports:
-      - "8001:8001"
+      - "8001:80"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8001/subscriptions >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  analytics-service:
+    image: golang:1.27-alpine
+    working_dir: /src/analytics-service
+    restart: unless-stopped
+    environment:
+      ENV: prod
+    volumes:
+      - ./backend:/src
+      - go_mod_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
+    command: sh -c "go mod download && go run ./cmd/app"
+    ports:
+      - "8004:80"
+    depends_on:
+      redis:
+        condition: service_healthy
+      users-service:
+        condition: service_healthy
+      payments-service:
+        condition: service_healthy
+      subscriptions-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/healthz >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10

@@ -2,30 +2,57 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
 	"time"
 
 	"analytics-service/internal/cache"
+
+	"golang.org/x/sync/singleflight"
 )
 
-const readMaxPeriods = 12
+var ErrSnapshotNotReady = errors.New("metrics: data snapshot is not ready")
 
 type MetricsReadService struct {
-	cache cache.Cache
+	cache    cache.Cache
+	ttl      time.Duration
+	inflight singleflight.Group
 }
 
-func NewMetricsReadService(cache cache.Cache) *MetricsReadService {
-	return &MetricsReadService{cache: cache}
+func NewMetricsReadService(cache cache.Cache, ttl time.Duration) *MetricsReadService {
+	return &MetricsReadService{
+		cache: cache,
+		ttl:   ttl,
+	}
 }
 
-func (s *MetricsReadService) Summary(ctx context.Context, from, to *time.Time) (cache.SummaryPayload, bool, error) {
-	snapshot, found, err := s.cache.GetUserMetrics(ctx)
-	if err != nil || !found {
-		return cache.SummaryPayload{}, found, err
+func (s *MetricsReadService) Summary(ctx context.Context, from, to *time.Time) (cache.SummaryPayload, error) {
+	snapshot, err := s.cache.GetUserMetrics(ctx)
+	if errors.Is(err, cache.ErrNotFound) {
+		return cache.SummaryPayload{}, ErrSnapshotNotReady
+	}
+	if err != nil {
+		return cache.SummaryPayload{}, err
 	}
 
-	cohort := filterCohort(snapshot.Users, from, to)
-	return summaryFromUsers(cohort, time.Now().UTC()), true, nil
+	key := summaryKey(from, to, snapshot.GeneratedAt)
+	value, err, _ := s.inflight.Do(key, func() (any, error) {
+		var payload cache.SummaryPayload
+		if err := s.cache.GetComputed(ctx, key, &payload); err == nil {
+			return payload, nil
+		} else if !errors.Is(err, cache.ErrNotFound) {
+			return nil, err
+		}
+
+		summary := summaryFromUsers(filterCohort(snapshot.Users, from, to), snapshot.GeneratedAt)
+		return summary, s.cache.SaveComputed(ctx, key, summary)
+	})
+	if err != nil {
+		return cache.SummaryPayload{}, err
+	}
+
+	return value.(cache.SummaryPayload), nil
 }
 
 func (s *MetricsReadService) Retention(
@@ -33,14 +60,54 @@ func (s *MetricsReadService) Retention(
 	planId int16,
 	from, to *time.Time,
 	maxPeriods int,
-) (cache.RetentionPayload, bool, error) {
-	snapshot, found, err := s.cache.GetUserMetrics(ctx)
-	if err != nil || !found {
-		return cache.RetentionPayload{}, found, err
+) (cache.RetentionPayload, error) {
+	snapshot, err := s.cache.GetUserMetrics(ctx)
+	if errors.Is(err, cache.ErrNotFound) {
+		return cache.RetentionPayload{}, ErrSnapshotNotReady
+	}
+	if err != nil {
+		return cache.RetentionPayload{}, err
 	}
 
-	cohort := filterCohort(snapshot.Users, from, to)
-	return retentionFromUsers(cohort, planId, time.Now().UTC(), maxPeriods), true, nil
+	key := retentionKey(planId, maxPeriods, from, to, snapshot.GeneratedAt)
+	value, err, _ := s.inflight.Do(key, func() (any, error) {
+		var payload cache.RetentionPayload
+		if err := s.cache.GetComputed(ctx, key, &payload); err == nil {
+			return payload, nil
+		} else if !errors.Is(err, cache.ErrNotFound) {
+			return nil, err
+		}
+
+		retention := retentionFromUsers(filterCohort(snapshot.Users, from, to), planId, snapshot.GeneratedAt, maxPeriods)
+		return retention, s.cache.SaveComputed(ctx, key, retention)
+	})
+	if err != nil {
+		return cache.RetentionPayload{}, err
+	}
+
+	return value.(cache.RetentionPayload), nil
+}
+
+func summaryKey(from, to *time.Time, generatedAt time.Time) string {
+	key := "summary:generated_at=" + generatedAt.Format(time.RFC3339Nano)
+	if from != nil {
+		key += ":from=" + from.Format(time.RFC3339Nano)
+	}
+	if to != nil {
+		key += ":to=" + to.Format(time.RFC3339Nano)
+	}
+	return key
+}
+
+func retentionKey(planId int16, maxPeriods int, from, to *time.Time, generatedAt time.Time) string {
+	key := fmt.Sprintf("retention:plan=%d:periods=%d:generated_at=%s", planId, maxPeriods, generatedAt.Format(time.RFC3339Nano))
+	if from != nil {
+		key += ":from=" + from.Format(time.RFC3339Nano)
+	}
+	if to != nil {
+		key += ":to=" + to.Format(time.RFC3339Nano)
+	}
+	return key
 }
 
 func filterCohort(users []cache.UserMetrics, from, to *time.Time) []cache.UserMetrics {
@@ -119,7 +186,7 @@ func retentionFromUsers(
 	}
 
 	periods := make([]cache.RetentionPeriodPayload, 0, maxPeriods)
-	for i := 0; i < maxPeriods; i++ {
+	for i := range maxPeriods {
 		if eligible[i] == 0 && renewed[i] == 0 {
 			break
 		}

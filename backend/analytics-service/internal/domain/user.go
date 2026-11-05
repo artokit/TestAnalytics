@@ -1,8 +1,3 @@
-// Package domain - модели внешних сервисов, вынесенные отдельно для декомпозиции.
-// Теги повторяют response-структуры самих сервисов:
-//   - users-service         (GET /users)
-//   - subscriptions-service (GET /plans) - появится позже
-//   - payments-service      (GET /payments) - появится позже
 package domain
 
 import "time"

@@ -8,8 +8,10 @@ import (
 	"payments-service/internal/handlers"
 	"payments-service/internal/repo/payment"
 	"payments-service/internal/services"
-	"test_analytics/shared/database"
-	"test_analytics/shared/httputil"
+	"shared/database"
+	"shared/httputil"
+	faultsconfig "shared/httputil/middleware/config"
+	middleware "shared/httputil/middleware"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -32,11 +34,13 @@ func NewServerBuilder(logger *slog.Logger, store *database.Storage, config *conf
 }
 
 func (b *ServerBuilder) Build() *http.Server {
-	faults, err := httputil.NewFaultsFromEnv()
+	cfg, err := faultsconfig.FaultsConfigFromEnv()
 	if err != nil {
 		panic(fmt.Sprintf("faults config: %v", err))
 	}
-	b.router.Use(faults.Middleware)
+
+	faults := middleware.NewFaults(cfg.ErrorRate500, cfg.ErrorRate429, cfg.RetryAfter)
+	b.router.Use(middleware.HealthSafe(faults.Middleware))
 
 	b.initHandlers()
 	addr := fmt.Sprintf("%s:%d", b.config.Address, b.config.Port)
@@ -56,4 +60,6 @@ func (b *ServerBuilder) initHandlers() {
 	paymentsRepo := payment.NewRepo(b.store.Db)
 	paymentsService := services.NewPaymentService(paymentsRepo, b.logger)
 	b.router.HandleFunc("/payments", handlers.GetPayments(paymentsService)).Methods(http.MethodGet)
+
+	b.router.HandleFunc("/healthz", httputil.Healthz()).Methods(http.MethodGet)
 }
