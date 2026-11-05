@@ -31,11 +31,9 @@ RUN apk add --no-cache ca-certificates && \
 WORKDIR /app
 
 COPY --from=build --chown=app:app /out/analytics-service /app/analytics-service
-COPY --chown=app:app analytics-service/.config/prod.json /app/.config/prod.json
 
 USER app
 
-ENV ENV=prod
 ENV SYNC_INTERVAL=${SYNC_INTERVAL:-10m}
 ENV MOCK_DELAY=${MOCK_DELAY:-0}
 ENV MOCK_DELAY_JITTER=${MOCK_DELAY_JITTER:-0}

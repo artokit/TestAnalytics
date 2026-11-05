@@ -1,7 +1,0 @@
-{
-  "address": "0.0.0.0",
-  "port": 80,
-  "database": {
-    "connection_string": "user=postgres password=postgres host=postgres port=5432 dbname=subscriptions-service sslmode=disable"
-  }
-}

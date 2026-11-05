@@ -3,21 +3,23 @@
 import "shared/config"
 
 type DatabaseConfig struct {
-	ConnectionString string `json:"connection_string"`
+	ConnectionString string
 }
 
 type Config struct {
-	Address  string         `json:"address"`
-	Port     int            `json:"port"`
-	Database DatabaseConfig `json:"database"`
+	Address      string `env:"PAYMENTS_ADDRESS" envDefault:"0.0.0.0"`
+	Port         int    `env:"PAYMENTS_PORT" envDefault:"80"`
+	DatabaseName string `env:"PAYMENTS_DB_NAME" envDefault:"payments-service"`
+	Database     DatabaseConfig
 }
 
 func NewConfig() (*Config, error) {
 	var cfg Config
-	err := config.LoadConfig[Config](&cfg)
-	if err != nil {
+	if err := config.Load(&cfg); err != nil {
 		return nil, err
 	}
+
+	cfg.Database.ConnectionString = config.PostgresDSN(cfg.DatabaseName)
 
 	return &cfg, nil
 }

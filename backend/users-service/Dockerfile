@@ -33,12 +33,9 @@ RUN apk add --no-cache ca-certificates && \
 WORKDIR /app
 
 COPY --from=build --chown=app:app /out/users-service /app/users-service
-COPY --chown=app:app users-service/.config/prod.json /app/.config/prod.json
 COPY --chown=app:app users-service/migrations /app/migrations
 
 USER app
-
-ENV CONFIG_FILE=/app/.config/prod.json
 
 EXPOSE 80
 
