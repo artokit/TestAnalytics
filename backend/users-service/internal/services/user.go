@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"users-service/internal/domain"
 	"users-service/internal/handlers/request"
@@ -10,7 +11,7 @@ import (
 )
 
 type IUserRepo interface {
-	GetUsers(ctx context.Context, limit int, offset int) ([]domain.User, int64, error)
+	GetUsers(ctx context.Context, limit int, offset int, updatedSince *time.Time) ([]domain.User, int64, error)
 }
 
 type UserService struct {
@@ -30,7 +31,7 @@ func (s *UserService) GetUsers(ctx context.Context, filter *request.UserFilter) 
 
 	offset := (page - 1) * pageSize
 
-	users, total, err := s.repo.GetUsers(ctx, pageSize, offset)
+	users, total, err := s.repo.GetUsers(ctx, pageSize, offset, filter.UpdatedSince)
 	if err != nil {
 		s.logger.Error("repo error", "method", "GetUsers", "page", page, "page_size", pageSize, "error", err)
 		return response.UsersResponsePaged{}, domain.ErrGetUsers

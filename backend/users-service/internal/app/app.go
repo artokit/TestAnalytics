@@ -7,13 +7,11 @@ import (
 	"shared/database"
 	"time"
 	"users-service/config"
-	_ "users-service/docs"
 	"users-service/internal/handlers"
 	"users-service/internal/repo/user"
 	"users-service/internal/services"
 
 	"github.com/gorilla/mux"
-	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 type ServerBuilder struct {
@@ -47,14 +45,7 @@ func (b *ServerBuilder) Build() *http.Server {
 	}
 }
 
-func (b *ServerBuilder) registerSwagger() {
-	b.router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
-	b.router.Path("/swagger").HandlerFunc(http.RedirectHandler("/swagger/", http.StatusPermanentRedirect).ServeHTTP)
-}
-
 func (b *ServerBuilder) initHandlers() {
-	b.registerSwagger()
-
 	usersRepo := user.NewRepo(b.store.Db)
 	usersService := services.New(usersRepo, b.logger)
 	b.router.HandleFunc("/users", handlers.GetUsers(usersService)).Methods(http.MethodGet)

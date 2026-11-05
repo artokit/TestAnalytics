@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"time"
 
 	"users-service/internal/domain"
 
@@ -26,14 +27,14 @@ var getUsersSql string
 //go:embed "sql/get_users_count.sql"
 var getUsersCountSql string
 
-func (r *Repo) GetUsers(ctx context.Context, limit int, offset int) ([]domain.User, int64, error) {
+func (r *Repo) GetUsers(ctx context.Context, limit int, offset int, updatedSince *time.Time) ([]domain.User, int64, error) {
 	var users []domain.User
-	if err := r.postgres.SelectContext(ctx, &users, getUsersSql, limit, offset); err != nil {
+	if err := r.postgres.SelectContext(ctx, &users, getUsersSql, limit, offset, updatedSince); err != nil {
 		return nil, 0, fmt.Errorf("repo: select users: %w", err)
 	}
 
 	var total int64
-	if err := r.postgres.GetContext(ctx, &total, getUsersCountSql); err != nil {
+	if err := r.postgres.GetContext(ctx, &total, getUsersCountSql, updatedSince); err != nil {
 		return nil, 0, fmt.Errorf("repo: count users: %w", err)
 	}
 

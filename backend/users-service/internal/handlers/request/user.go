@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
+
 	"users-service/internal/domain"
 )
 
@@ -15,9 +17,9 @@ const (
 )
 
 type UserFilter struct {
-	Page     int
-	PageSize int
-	//UpdatedSince *time.Time
+	Page         int
+	PageSize     int
+	UpdatedSince *time.Time
 }
 
 func GetUserFilter(r *http.Request) (*UserFilter, error) {
@@ -31,19 +33,19 @@ func GetUserFilter(r *http.Request) (*UserFilter, error) {
 		return nil, domain.ErrInvalidParam
 	}
 
-	//var updatedSince *time.Time
-	//if raw := r.URL.Query().Get("updated_since"); raw != "" {
-	//	t, err := time.Parse(time.RFC3339, raw)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("invalid updated_since, expected RFC3339: %w", err)
-	//	}
-	//	updatedSince = &t
-	//}
+	var updatedSince *time.Time
+	if raw := r.URL.Query().Get("updated_since"); raw != "" {
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return nil, domain.ErrInvalidParam
+		}
+		updatedSince = &t
+	}
 
 	return &UserFilter{
-		Page:     page,
-		PageSize: pageSize,
-		//UpdatedSince: updatedSince,
+		Page:         page,
+		PageSize:     pageSize,
+		UpdatedSince: updatedSince,
 	}, nil
 }
 
