@@ -1,0 +1,7 @@
+{
+  "address": "127.0.0.1",
+  "port": 8003,
+  "database": {
+    "connection_string": "user=postgres password=postgres host=localhost port=5432 dbname=payments-service sslmode=disable"
+  }
+}

@@ -1,11 +1,10 @@
 package request
 
 import (
-	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
+	"shared/httputil"
 	"users-service/internal/domain"
 )
 
@@ -23,23 +22,19 @@ type UserFilter struct {
 }
 
 func GetUserFilter(r *http.Request) (*UserFilter, error) {
-	page, err := getQueryParamInt(r, "page", DefaultPage)
+	page, err := httputil.ReadIntQuery(r, "page", DefaultPage)
 	if err != nil {
 		return nil, domain.ErrInvalidParam
 	}
 
-	pageSize, err := getQueryParamInt(r, "page_size", DefaultPageSize)
+	pageSize, err := httputil.ReadIntQuery(r, "page_size", DefaultPageSize)
 	if err != nil {
 		return nil, domain.ErrInvalidParam
 	}
 
-	var updatedSince *time.Time
-	if raw := r.URL.Query().Get("updated_since"); raw != "" {
-		t, err := time.Parse(time.RFC3339, raw)
-		if err != nil {
-			return nil, domain.ErrInvalidParam
-		}
-		updatedSince = &t
+	updatedSince, err := httputil.ReadTimeQuery(r, "updated_since")
+	if err != nil {
+		return nil, domain.ErrInvalidParam
 	}
 
 	return &UserFilter{
@@ -47,18 +42,4 @@ func GetUserFilter(r *http.Request) (*UserFilter, error) {
 		PageSize:     pageSize,
 		UpdatedSince: updatedSince,
 	}, nil
-}
-
-func getQueryParamInt(r *http.Request, key string, fallback int) (int, error) {
-	query := r.URL.Query()
-	if query.Get(key) == "" {
-		return fallback, nil
-	}
-
-	value, err := strconv.Atoi(query.Get(key))
-	if err != nil {
-		return 0, fmt.Errorf("invalid %s: %w", key, err)
-	}
-
-	return value, nil
 }

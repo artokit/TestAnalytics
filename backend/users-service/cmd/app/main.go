@@ -14,12 +14,6 @@ import (
 	"users-service/internal/app"
 )
 
-// @title        Users Service API
-// @version      1.0
-// @description  REST API сервиса пользователей.
-// @BasePath     /
-// @Schemes      http
-
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
