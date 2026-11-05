@@ -1,0 +1,223 @@
+basePath: /
+definitions:
+  domain.Plan:
+    properties:
+      currency:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      period_months:
+        type: integer
+      price:
+        type: integer
+    type: object
+  domain.PlansResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.Plan'
+        type: array
+    type: object
+  httputil.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  response.HealthzResponse:
+    properties:
+      status:
+        type: string
+    type: object
+  response.LtvSummaryMetrics:
+    properties:
+      avg_ltv:
+        type: integer
+      median_ltv:
+        type: integer
+      total_revenue:
+        type: integer
+      users:
+        type: integer
+    type: object
+  response.LtvSummaryResponse:
+    properties:
+      data_as_of:
+        type: string
+      metrics:
+        $ref: '#/definitions/response.LtvSummaryMetrics'
+    type: object
+  response.RetentionPeriod:
+    properties:
+      cumulative_rate:
+        type: number
+      eligible:
+        type: integer
+      period:
+        type: integer
+      rate:
+        type: number
+      renewed:
+        type: integer
+    type: object
+  response.RetentionResponse:
+    properties:
+      cohort_size:
+        type: integer
+      data_as_of:
+        type: string
+      periods:
+        items:
+          $ref: '#/definitions/response.RetentionPeriod'
+        type: array
+      plan_id:
+        type: integer
+    type: object
+  response.StatusResponse:
+    properties:
+      last_poll:
+        type: string
+      last_sync_err:
+        type: string
+      next_poll:
+        type: string
+      ready:
+        type: boolean
+    type: object
+info:
+  contact: {}
+  description: REST API сервиса аналитики.
+  title: Analytics Service API
+  version: "1.0"
+paths:
+  /healthz:
+    get:
+      description: 200 если процесс отвечает
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.HealthzResponse'
+      summary: Живость сервиса
+      tags:
+      - system
+  /metrics/ltv/by-plan:
+    get:
+      description: Стаб
+      produces:
+      - application/json
+      responses:
+        "503":
+          description: снимок ещё не собран
+          schema:
+            type: string
+      summary: LTV по тарифу первой подписки
+  /metrics/ltv/summary:
+    get:
+      description: Среднее, медиана, общая выручка и число пользователей когорты.
+        from/to фильтруют когорту по дате первой подписки (RFC3339)
+      parameters:
+      - description: Начало когорты (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: Конец когорты (RFC3339)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.LtvSummaryResponse'
+        "304":
+          description: Not Modified
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "503":
+          description: снимок ещё не собран
+          schema:
+            type: string
+      summary: Общий LTV по всем пользователям
+  /metrics/retention:
+    get:
+      description: Условные и кумулятивные доли продлений по периодам (когорта - пользователи
+        с первой подпиской на указанный тариф). from/to фильтруют когорту по дате
+        первой подписки
+      parameters:
+      - description: Идентификатор тарифа
+        in: query
+        name: plan_id
+        required: true
+        type: integer
+      - default: 12
+        description: Максимальное число периодов (по умолчанию 12)
+        in: query
+        minimum: 1
+        name: max_periods
+        type: integer
+      - description: Начало когорты (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: Конец когорты (RFC3339)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.RetentionResponse'
+        "304":
+          description: Not Modified
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "404":
+          description: нет данных для тарифа
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "503":
+          description: снимок ещё не собран
+          schema:
+            type: string
+      summary: Процент продлений по периодам для тарифа
+  /plans:
+    get:
+      description: Планы из снимка данных воркера (источник subscriptions-service)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.PlansResponse'
+      summary: Список тарифных планов
+  /status:
+    get:
+      description: Время последнего успешного опроса источников, время следующего
+        опроса и последняя ошибка синхронизации, если была
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.StatusResponse'
+      summary: Статус синхронизации
+      tags:
+      - system
+schemes:
+- http
+swagger: "2.0"

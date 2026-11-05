@@ -1,0 +1,112 @@
+definitions:
+  httputil.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  response.PlanResponse:
+    properties:
+      currency:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      period_months:
+        type: integer
+      price:
+        type: integer
+    type: object
+  response.PlansResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/response.PlanResponse'
+        type: array
+    type: object
+  response.SubscriptionResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      period_end:
+        type: string
+      period_start:
+        type: string
+      plan_id:
+        type: integer
+      status:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  response.SubscriptionsResponsePaged:
+    properties:
+      page:
+        type: integer
+      page_size:
+        type: integer
+      subscriptions:
+        items:
+          $ref: '#/definitions/response.SubscriptionResponse'
+        type: array
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+info:
+  contact: {}
+paths:
+  /plans:
+    get:
+      description: Возвращает доступные тарифные планы подписок
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.PlansResponse'
+      summary: Список тарифных планов
+      tags:
+      - plans
+  /subscriptions:
+    get:
+      description: Возвращает подписки постранично, сортировка по created_at (новые
+        сначала)
+      parameters:
+      - default: 1
+        description: Номер страницы (минимум 1)
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - default: 50
+        description: Размер страницы
+        in: query
+        minimum: 1
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SubscriptionsResponsePaged'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      summary: Список подписок
+      tags:
+      - subscriptions
+swagger: "2.0"

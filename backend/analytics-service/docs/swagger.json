@@ -1,0 +1,336 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "REST API сервиса аналитики.",
+        "title": "Analytics Service API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/healthz": {
+            "get": {
+                "description": "200 если процесс отвечает",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Живость сервиса",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.HealthzResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/metrics/ltv/by-plan": {
+            "get": {
+                "description": "Стаб",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "LTV по тарифу первой подписки",
+                "responses": {
+                    "503": {
+                        "description": "снимок ещё не собран",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/metrics/ltv/summary": {
+            "get": {
+                "description": "Среднее, медиана, общая выручка и число пользователей когорты. from/to фильтруют когорту по дате первой подписки (RFC3339)",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Общий LTV по всем пользователям",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Начало когорты (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец когорты (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.LtvSummaryResponse"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "снимок ещё не собран",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/metrics/retention": {
+            "get": {
+                "description": "Условные и кумулятивные доли продлений по периодам (когорта - пользователи с первой подпиской на указанный тариф). from/to фильтруют когорту по дате первой подписки",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Процент продлений по периодам для тарифа",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Идентификатор тарифа",
+                        "name": "plan_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 12,
+                        "description": "Максимальное число периодов (по умолчанию 12)",
+                        "name": "max_periods",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Начало когорты (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец когорты (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.RetentionResponse"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "нет данных для тарифа",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "снимок ещё не собран",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/plans": {
+            "get": {
+                "description": "Планы из снимка данных воркера (источник subscriptions-service)",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Список тарифных планов",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.PlansResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/status": {
+            "get": {
+                "description": "Время последнего успешного опроса источников, время следующего опроса и последняя ошибка синхронизации, если была",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Статус синхронизации",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.StatusResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "domain.Plan": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "period_months": {
+                    "type": "integer"
+                },
+                "price": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.PlansResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Plan"
+                    }
+                }
+            }
+        },
+        "httputil.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "response.HealthzResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "response.LtvSummaryMetrics": {
+            "type": "object",
+            "properties": {
+                "avg_ltv": {
+                    "type": "integer"
+                },
+                "median_ltv": {
+                    "type": "integer"
+                },
+                "total_revenue": {
+                    "type": "integer"
+                },
+                "users": {
+                    "type": "integer"
+                }
+            }
+        },
+        "response.LtvSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "data_as_of": {
+                    "type": "string"
+                },
+                "metrics": {
+                    "$ref": "#/definitions/response.LtvSummaryMetrics"
+                }
+            }
+        },
+        "response.RetentionPeriod": {
+            "type": "object",
+            "properties": {
+                "cumulative_rate": {
+                    "type": "number"
+                },
+                "eligible": {
+                    "type": "integer"
+                },
+                "period": {
+                    "type": "integer"
+                },
+                "rate": {
+                    "type": "number"
+                },
+                "renewed": {
+                    "type": "integer"
+                }
+            }
+        },
+        "response.RetentionResponse": {
+            "type": "object",
+            "properties": {
+                "cohort_size": {
+                    "type": "integer"
+                },
+                "data_as_of": {
+                    "type": "string"
+                },
+                "periods": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/response.RetentionPeriod"
+                    }
+                },
+                "plan_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "response.StatusResponse": {
+            "type": "object",
+            "properties": {
+                "last_poll": {
+                    "type": "string"
+                },
+                "last_sync_err": {
+                    "type": "string"
+                },
+                "next_poll": {
+                    "type": "string"
+                },
+                "ready": {
+                    "type": "boolean"
+                }
+            }
+        }
+    }
+}
