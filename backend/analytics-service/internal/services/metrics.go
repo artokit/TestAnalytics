@@ -25,6 +25,7 @@ func (s *MetricsService) Recalculate(
 	users map[string]domain.User,
 	payments map[string]domain.Payment,
 	subs map[string]domain.Subscription,
+	plans map[int]domain.Plan,
 	now time.Time,
 ) error {
 	if err := s.cache.SaveSummary(ctx, buildSummary(users, payments, now)); err != nil {
@@ -35,7 +36,7 @@ func (s *MetricsService) Recalculate(
 		return fmt.Errorf("metrics: save retention: %w", err)
 	}
 
-	if err := s.cache.SaveUserMetrics(ctx, buildUserMetrics(users, payments, subs, now)); err != nil {
+	if err := s.cache.SaveUserMetrics(ctx, buildUserMetrics(users, payments, subs, plans, now)); err != nil {
 		return fmt.Errorf("metrics: save users metrics: %w", err)
 	}
 
@@ -46,21 +47,24 @@ func buildUserMetrics(
 	users map[string]domain.User,
 	payments map[string]domain.Payment,
 	subs map[string]domain.Subscription,
+	plans map[int]domain.Plan,
 	now time.Time,
 ) cache.UserMetricsSnapshot {
 	ltvByUser := make(map[string]int64, len(users))
 	for _, p := range payments {
-		switch p.Status {
-		case "succeeded":
+		if p.Status == "succeeded" {
 			ltvByUser[p.UserId] += p.Amount
-		case "refunded":
-			ltvByUser[p.UserId] -= p.Amount
 		}
 	}
 
 	chains := make(map[string][]domain.Subscription)
 	for _, sub := range subs {
 		chains[sub.UserId] = append(chains[sub.UserId], sub)
+	}
+
+	planMonths := make(map[int16]int, len(plans))
+	for id, plan := range plans {
+		planMonths[int16(id)] = plan.PeriodMonths
 	}
 
 	payload := cache.UserMetricsSnapshot{
@@ -79,6 +83,7 @@ func buildUserMetrics(
 			sort.Slice(chain, func(i, j int) bool { return chain[i].PeriodStart.Before(chain[j].PeriodStart) })
 			user.FirstPlanId = chain[0].PlanId
 			user.FirstSubDate = chain[0].PeriodStart
+			user.FirstPlanMonths = firstPlanMonths(planMonths, chain[0])
 			for _, row := range chain {
 				user.Chain = append(user.Chain, cache.ChainItem{
 					PlanId:      row.PlanId,
@@ -94,6 +99,18 @@ func buildUserMetrics(
 	sort.Slice(payload.Users, func(i, j int) bool { return payload.Users[i].UserId < payload.Users[j].UserId })
 
 	return payload
+}
+
+func firstPlanMonths(planMonths map[int16]int, first domain.Subscription) int {
+	if m, ok := planMonths[first.PlanId]; ok {
+		return m
+	}
+
+	months := int(first.PeriodEnd.Sub(first.PeriodStart) / (30 * 24 * time.Hour))
+	if months < 1 {
+		return 1
+	}
+	return months
 }
 
 func buildSummary(

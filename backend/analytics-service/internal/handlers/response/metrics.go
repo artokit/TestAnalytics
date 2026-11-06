@@ -29,6 +29,18 @@ type RetentionResponse struct {
 	Periods    []RetentionPeriod `json:"periods"`
 }
 
+type PlanLtv struct {
+	PlanId       int16 `json:"plan_id"`
+	Users        int   `json:"users"`
+	AvgLtv       int64 `json:"avg_ltv"`
+	TotalRevenue int64 `json:"total_revenue"`
+}
+
+type LtvByPlanResponse struct {
+	DataAsOf time.Time `json:"data_as_of"`
+	Plans    []PlanLtv `json:"plans"`
+}
+
 type StatusResponse struct {
 	Ready       bool      `json:"ready"`
 	LastPoll    time.Time `json:"last_poll"`

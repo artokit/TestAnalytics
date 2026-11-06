@@ -88,6 +88,90 @@ func (s *MetricsReadService) Retention(
 	return value.(cache.RetentionPayload), nil
 }
 
+func (s *MetricsReadService) LtvByPlan(
+	ctx context.Context,
+	from, to *time.Time,
+) (cache.LtvByPlanPayload, error) {
+	snapshot, err := s.cache.GetUserMetrics(ctx)
+	if errors.Is(err, cache.ErrNotFound) {
+		return cache.LtvByPlanPayload{}, ErrSnapshotNotReady
+	}
+	if err != nil {
+		return cache.LtvByPlanPayload{}, err
+	}
+
+	key := ltvByPlanKey(from, to, snapshot.GeneratedAt)
+	value, err, _ := s.inflight.Do(key, func() (any, error) {
+		var payload cache.LtvByPlanPayload
+		if err := s.cache.GetComputed(ctx, key, &payload); err == nil {
+			return payload, nil
+		} else if !errors.Is(err, cache.ErrNotFound) {
+			return nil, err
+		}
+
+		byPlan := ltvByPlanFromUsers(filterCohort(snapshot.Users, from, to), snapshot.GeneratedAt)
+		return byPlan, s.cache.SaveComputed(ctx, key, byPlan)
+	})
+	if err != nil {
+		return cache.LtvByPlanPayload{}, err
+	}
+
+	return value.(cache.LtvByPlanPayload), nil
+}
+
+func ltvByPlanKey(from, to *time.Time, generatedAt time.Time) string {
+	key := "ltv_by_plan:generated_at=" + generatedAt.Format(time.RFC3339Nano)
+	if from != nil {
+		key += ":from=" + from.Format(time.RFC3339Nano)
+	}
+	if to != nil {
+		key += ":to=" + to.Format(time.RFC3339Nano)
+	}
+	return key
+}
+
+func ltvByPlanFromUsers(users []cache.UserMetrics, now time.Time) cache.LtvByPlanPayload {
+	type planAgg struct {
+		users  int
+		ltvSum int64
+	}
+
+	aggs := make(map[int16]*planAgg)
+	for _, u := range users {
+		if u.FirstPlanId == 0 {
+			continue
+		}
+		agg, ok := aggs[u.FirstPlanId]
+		if !ok {
+			agg = &planAgg{}
+			aggs[u.FirstPlanId] = agg
+		}
+		agg.users++
+		agg.ltvSum += u.Ltv
+	}
+
+	plans := make([]cache.PlanLtvPayload, 0, len(aggs))
+	for planId, agg := range aggs {
+		avg := int64(0)
+		if agg.users > 0 {
+			avg = agg.ltvSum / int64(agg.users)
+		}
+		plans = append(plans, cache.PlanLtvPayload{
+			PlanId:       planId,
+			Users:        agg.users,
+			AvgLtv:       avg,
+			TotalRevenue: agg.ltvSum,
+		})
+	}
+
+	sort.Slice(plans, func(i, j int) bool { return plans[i].PlanId < plans[j].PlanId })
+
+	return cache.LtvByPlanPayload{
+		DataAsOf: now,
+		Plans:    plans,
+	}
+}
+
 func summaryKey(from, to *time.Time, generatedAt time.Time) string {
 	key := "summary:generated_at=" + generatedAt.Format(time.RFC3339Nano)
 	if from != nil {
@@ -169,24 +253,34 @@ func retentionFromUsers(
 		}
 		cohortSize++
 
-		for i, row := range u.Chain {
-			period := i + 1
-			if period > maxPeriods {
+		months := u.FirstPlanMonths
+		if months <= 0 {
+			months = 1
+		}
+		step := time.Duration(months) * retentionMonth
+		start := u.Chain[0].PeriodStart
+
+		for period := 1; period <= maxPeriods; period++ {
+			periodEnd := start.Add(time.Duration(period) * step)
+			if periodEnd.After(now) {
 				break
 			}
-			if row.PeriodEnd.After(now) {
+
+			mid := start.Add(time.Duration(period-1)*step + step/2)
+			if !covered(u.Chain, mid) {
 				break
 			}
+
 			eligible[period-1]++
 
-			if i+1 < len(u.Chain) && !u.Chain[i+1].PeriodStart.Before(row.PeriodEnd) {
+			if covered(u.Chain, mid.Add(step)) {
 				renewed[period-1]++
 			}
 		}
 	}
 
 	periods := make([]cache.RetentionPeriodPayload, 0, maxPeriods)
-	for i := range maxPeriods {
+	for i := 0; i < maxPeriods; i++ {
 		if eligible[i] == 0 && renewed[i] == 0 {
 			break
 		}
@@ -215,4 +309,15 @@ func retentionFromUsers(
 		CohortSize: cohortSize,
 		Periods:    periods,
 	}
+}
+
+const retentionMonth = 30 * 24 * time.Hour
+
+func covered(rows []cache.ChainItem, t time.Time) bool {
+	for _, row := range rows {
+		if !row.PeriodStart.After(t) && row.PeriodEnd.After(t) {
+			return true
+		}
+	}
+	return false
 }
