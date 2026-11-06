@@ -15,34 +15,43 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/healthz": {
-            "get": {
-                "description": "200 если процесс отвечает",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "system"
-                ],
-                "summary": "Живость сервиса",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/response.HealthzResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/metrics/ltv/by-plan": {
             "get": {
-                "description": "Стаб",
+                "description": "Средний LTV, число пользователей и выручка по тарифам первой подписки когорты. from/to фильтруют когорту по дате первой подписки (RFC3339)",
                 "produces": [
                     "application/json"
                 ],
                 "summary": "LTV по тарифу первой подписки",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Начало когорты (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец когорты (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/analytics-service_internal_handlers_response.LtvByPlanResponse"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    },
                     "503": {
                         "description": "снимок ещё не собран",
                         "schema": {
@@ -77,7 +86,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/response.LtvSummaryResponse"
+                            "$ref": "#/definitions/analytics-service_internal_handlers_response.LtvSummaryResponse"
                         }
                     },
                     "304": {
@@ -138,7 +147,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/response.RetentionResponse"
+                            "$ref": "#/definitions/analytics-service_internal_handlers_response.RetentionResponse"
                         }
                     },
                     "304": {
@@ -165,23 +174,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/plans": {
-            "get": {
-                "description": "Планы из снимка данных воркера (источник subscriptions-service)",
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Список тарифных планов",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/domain.PlansResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/status": {
             "get": {
                 "description": "Время последнего успешного опроса источников, время следующего опроса и последняя ошибка синхронизации, если была",
@@ -196,7 +188,54 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/response.StatusResponse"
+                            "$ref": "#/definitions/analytics-service_internal_handlers_response.StatusResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/by-telegram/{telegram_id}/ltv": {
+            "get": {
+                "description": "Пользователь: id, тариф первой подписки, LTV, число платежей и текущий статус подписки. Данные берутся из последнего снимка",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "LTV пользователя по telegram_id",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Telegram ID пользователя",
+                        "name": "telegram_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/analytics-service_internal_handlers_response.UserLtvResponse"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "снимок ещё не собран",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -204,54 +243,21 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "domain.Plan": {
+        "analytics-service_internal_handlers_response.LtvByPlanResponse": {
             "type": "object",
             "properties": {
-                "currency": {
+                "data_as_of": {
                     "type": "string"
                 },
-                "id": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "period_months": {
-                    "type": "integer"
-                },
-                "price": {
-                    "type": "integer"
-                }
-            }
-        },
-        "domain.PlansResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
+                "plans": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Plan"
+                        "$ref": "#/definitions/analytics-service_internal_handlers_response.PlanLtv"
                     }
                 }
             }
         },
-        "httputil.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "string"
-                }
-            }
-        },
-        "response.HealthzResponse": {
-            "type": "object",
-            "properties": {
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "response.LtvSummaryMetrics": {
+        "analytics-service_internal_handlers_response.LtvSummaryMetrics": {
             "type": "object",
             "properties": {
                 "avg_ltv": {
@@ -268,18 +274,35 @@ const docTemplate = `{
                 }
             }
         },
-        "response.LtvSummaryResponse": {
+        "analytics-service_internal_handlers_response.LtvSummaryResponse": {
             "type": "object",
             "properties": {
                 "data_as_of": {
                     "type": "string"
                 },
                 "metrics": {
-                    "$ref": "#/definitions/response.LtvSummaryMetrics"
+                    "$ref": "#/definitions/analytics-service_internal_handlers_response.LtvSummaryMetrics"
                 }
             }
         },
-        "response.RetentionPeriod": {
+        "analytics-service_internal_handlers_response.PlanLtv": {
+            "type": "object",
+            "properties": {
+                "avg_ltv": {
+                    "type": "integer"
+                },
+                "plan_id": {
+                    "type": "integer"
+                },
+                "total_revenue": {
+                    "type": "integer"
+                },
+                "users": {
+                    "type": "integer"
+                }
+            }
+        },
+        "analytics-service_internal_handlers_response.RetentionPeriod": {
             "type": "object",
             "properties": {
                 "cumulative_rate": {
@@ -299,7 +322,7 @@ const docTemplate = `{
                 }
             }
         },
-        "response.RetentionResponse": {
+        "analytics-service_internal_handlers_response.RetentionResponse": {
             "type": "object",
             "properties": {
                 "cohort_size": {
@@ -311,7 +334,7 @@ const docTemplate = `{
                 "periods": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/response.RetentionPeriod"
+                        "$ref": "#/definitions/analytics-service_internal_handlers_response.RetentionPeriod"
                     }
                 },
                 "plan_id": {
@@ -319,7 +342,7 @@ const docTemplate = `{
                 }
             }
         },
-        "response.StatusResponse": {
+        "analytics-service_internal_handlers_response.StatusResponse": {
             "type": "object",
             "properties": {
                 "last_poll": {
@@ -333,6 +356,37 @@ const docTemplate = `{
                 },
                 "ready": {
                     "type": "boolean"
+                }
+            }
+        },
+        "analytics-service_internal_handlers_response.UserLtvResponse": {
+            "type": "object",
+            "properties": {
+                "current_status": {
+                    "type": "string"
+                },
+                "first_plan_id": {
+                    "type": "integer"
+                },
+                "ltv": {
+                    "type": "integer"
+                },
+                "payments_count": {
+                    "type": "integer"
+                },
+                "telegram_id": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "httputil.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
                 }
             }
         }

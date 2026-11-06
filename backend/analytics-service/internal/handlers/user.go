@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	_ "analytics-service/internal/handlers/response"
+
 	"analytics-service/internal/domain"
 	"analytics-service/internal/handlers/request"
 	"analytics-service/internal/services"
