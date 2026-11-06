@@ -49,7 +49,7 @@ func (s *SubscriptionService) FetchSubscriptions(ctx context.Context, updatedSin
 		})
 		if err != nil {
 			s.logger.Error("failed to fetch data from subscriptions-service", "error", err)
-			return nil, fmt.Errorf("failed to fetch data from subscriptions-service")
+			return nil, fmt.Errorf("ошибка при получение данных из subscriptions-service")
 		}
 
 		subs = append(subs, p.Subscriptions...)
@@ -72,7 +72,7 @@ func (s *SubscriptionService) FetchPlans(ctx context.Context) ([]domain.Plan, er
 	})
 	if err != nil {
 		s.logger.Error("failed to fetch plans from subscriptions-service", "error", err)
-		return nil, fmt.Errorf("failed to fetch plans from subscriptions-service")
+		return nil, fmt.Errorf("ошибка при получение тарифов из subscriptions-service")
 	}
 
 	return p.Items, nil

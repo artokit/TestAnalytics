@@ -1,12 +1,22 @@
 import { useState } from 'react'
-import { Card, Loader, StateMessage } from '@/shared/ui'
+import { Card, Loader, Select, StateMessage } from '@/shared/ui'
 import { errorMessage, isSnapshotNotReady } from '@/shared/api/http'
-import { useSummary } from '@/features/metrics/model/hooks'
+import { useCurrencyRates, useSummary } from '@/features/metrics/model/hooks'
 import { formatDataAsOf, formatMoney, formatNumber } from '@/entities/metrics/lib/format'
+import type { Currency } from '@/entities/metrics/types'
+
+const CURRENCY_OPTIONS: { value: Currency; label: string }[] = [
+  { value: 'RUB', label: 'RUB' },
+  { value: 'USDT', label: 'USDT' },
+  { value: 'SOL', label: 'SOL' },
+]
 
 export function LtvSummaryWidget() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  const [currency, setCurrency] = useState<Currency>('RUB')
+
+  const { data: rates, isLoading: ratesLoading } = useCurrencyRates()
 
   const { data, isLoading, error, isFetching } = useSummary({
     from: from ? new Date(from).toISOString() : undefined,
@@ -30,6 +40,11 @@ export function LtvSummaryWidget() {
             onChange={(e) => setTo(e.target.value)}
             className="rounded-lg border border-line bg-surface2 px-2 py-1 text-[12px] text-ink"
           />
+          <Select
+            value={currency}
+            options={CURRENCY_OPTIONS}
+            onChange={setCurrency}
+          />
         </div>
       }
     >
@@ -51,15 +66,21 @@ export function LtvSummaryWidget() {
         >
           <div className="flex flex-col gap-1.5 rounded-[10px] bg-surface2 p-3.5">
             <span className="text-xs text-muted">Средний LTV</span>
-            <span className="text-xl font-bold text-ink">{formatMoney(data.metrics.avg_ltv)}</span>
+            <span className="text-xl font-bold text-ink">
+              {formatMoney(data.metrics.avg_ltv, currency, ratesLoading ? undefined : rates?.prices)}
+            </span>
           </div>
           <div className="flex flex-col gap-1.5 rounded-[10px] bg-surface2 p-3.5">
             <span className="text-xs text-muted">Медианный LTV</span>
-            <span className="text-xl font-bold text-ink">{formatMoney(data.metrics.median_ltv)}</span>
+            <span className="text-xl font-bold text-ink">
+              {formatMoney(data.metrics.median_ltv, currency, ratesLoading ? undefined : rates?.prices)}
+            </span>
           </div>
           <div className="flex flex-col gap-1.5 rounded-[10px] bg-surface2 p-3.5">
             <span className="text-xs text-muted">Общая выручка</span>
-            <span className="text-xl font-bold text-ink">{formatMoney(data.metrics.total_revenue)}</span>
+            <span className="text-xl font-bold text-ink">
+              {formatMoney(data.metrics.total_revenue, currency, ratesLoading ? undefined : rates?.prices)}
+            </span>
           </div>
           <div className="flex flex-col gap-1.5 rounded-[10px] bg-surface2 p-3.5">
             <span className="text-xs text-muted">Пользователей</span>

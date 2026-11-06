@@ -58,10 +58,11 @@ func main() {
 	usersService := services.NewUserService(hc, logger, cfg)
 	paymentsService := services.NewPaymentService(hc, logger, cfg)
 	subsService := services.NewSubscriptionService(hc, logger, cfg)
-	worker := worker.New(logger, cfg.Sync, userStorage, paymentStorage, subStorage, planStorage, usersService, paymentsService, subsService, metricsService)
-	go worker.Run(ctx)
+	wrk := worker.New(logger, cfg.Sync, userStorage, paymentStorage, subStorage, planStorage, usersService, paymentsService, subsService, metricsService)
+	go wrk.Run(ctx)
 
-	server := app.NewServerBuilder(logger, worker, metricsRead, cfg).Build()
+	currencyService := services.NewCurrencyService(hc, logger, cfg)
+	server := app.NewServerBuilder(logger, wrk, metricsRead, currencyService, cfg).Build()
 
 	go func() {
 		<-ctx.Done()

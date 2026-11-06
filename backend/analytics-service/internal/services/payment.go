@@ -49,7 +49,7 @@ func (s *PaymentService) FetchPayments(ctx context.Context, updatedSince *time.T
 		})
 		if err != nil {
 			s.logger.Error("failed to fetch data from payments-service", "error", err)
-			return nil, fmt.Errorf("failed to fetch data from payments-service")
+			return nil, fmt.Errorf("ошибка при получение данных из payments-service")
 		}
 
 		payments = append(payments, p.Payments...)

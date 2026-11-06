@@ -1,4 +1,5 @@
 import type {
+  CurrencyRates,
   LtvSummary,
   Plan,
   Retention,
@@ -25,6 +26,10 @@ export const metricsApi = {
   },
   async status(): Promise<SyncStatus> {
     const res = await http.get<SyncStatus>('/status')
+    return res.data
+  },
+  async currency(): Promise<CurrencyRates> {
+    const res = await http.get<CurrencyRates>('/currency')
     return res.data
   },
 }

@@ -43,3 +43,10 @@ export interface Plan {
 export interface PlansResponse {
   items: Plan[]
 }
+
+export type Currency = 'RUB' | 'USDT' | 'SOL'
+
+export interface CurrencyRates {
+  base: string
+  prices: Record<string, number>
+}

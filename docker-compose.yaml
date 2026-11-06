@@ -14,8 +14,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
-    ports:
-      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql
     configs:
@@ -138,8 +136,6 @@ services:
       dockerfile: seeder-service/Dockerfile
     image: seeder-service:latest
     restart: "no"
-    profiles:
-      - seed
     environment:
       SEED: ${SEED:-42}
       SEED_USERS: ${SEED_USERS:-10000}
