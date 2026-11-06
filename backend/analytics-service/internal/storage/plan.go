@@ -29,5 +29,10 @@ func (s *PlanStorage) Replace(plans []domain.Plan) {
 func (s *PlanStorage) All() map[int]domain.Plan {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.Plans
+
+	out := make(map[int]domain.Plan, len(s.Plans))
+	for id, p := range s.Plans {
+		out[id] = p
+	}
+	return out
 }

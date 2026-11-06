@@ -60,10 +60,12 @@ func (b *ServerBuilder) registerSwagger() {
 func (b *ServerBuilder) initHandlers() {
 	b.router.HandleFunc("/metrics/ltv/summary", handlers.GetLtvSummary(b.metricsRead, b.worker)).Methods(http.MethodGet)
 
-	b.router.HandleFunc("/metrics/ltv/by-plan", handlers.GetLtvByPlan()).Methods(http.MethodGet)
+	b.router.HandleFunc("/metrics/ltv/by-plan", handlers.GetLtvByPlan(b.metricsRead, b.worker)).Methods(http.MethodGet)
 	b.router.HandleFunc("/metrics/retention", handlers.GetRetention(b.metricsRead, b.worker)).Methods(http.MethodGet)
 
 	b.router.HandleFunc("/currency", handlers.GetCurrency(b.currency)).Methods(http.MethodGet)
+
+	b.router.HandleFunc("/users/by-telegram/{telegram_id}/ltv", handlers.GetUserLtvByTelegram(b.metricsRead, b.worker)).Methods(http.MethodGet)
 
 	b.router.HandleFunc("/status", handlers.GetStatus(b.worker)).Methods(http.MethodGet)
 	b.router.HandleFunc("/healthz", httputil.Healthz()).Methods(http.MethodGet)

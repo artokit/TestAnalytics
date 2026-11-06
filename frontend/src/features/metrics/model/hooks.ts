@@ -15,6 +15,16 @@ export function useSummary(range?: DateRange) {
   })
 }
 
+export function useLtvByPlan(range?: DateRange) {
+  return useQuery({
+    queryKey: ['metrics', 'ltv-by-plan', range?.from ?? '', range?.to ?? ''],
+    queryFn: () => metricsApi.ltvByPlan(range?.from, range?.to),
+    placeholderData: keepPreviousData,
+    refetchInterval: POLL_INTERVAL,
+    retry: 1,
+  })
+}
+
 export function useRetention(planId: number, maxPeriods: number, range?: DateRange) {
   return useQuery({
     queryKey: [
@@ -48,6 +58,15 @@ export function useStatus() {
     queryKey: ['metrics', 'status'],
     queryFn: metricsApi.status,
     refetchInterval: POLL_INTERVAL,
+    retry: 1,
+  })
+}
+
+export function useUserLtv(telegramId: number) {
+  return useQuery({
+    queryKey: ['metrics', 'user-ltv', telegramId],
+    queryFn: () => metricsApi.userLtv(telegramId),
+    enabled: telegramId > 0,
     retry: 1,
   })
 }

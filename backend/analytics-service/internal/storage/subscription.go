@@ -28,7 +28,12 @@ func (s *SubscriptionStorage) Merge(subs []domain.Subscription) {
 func (s *SubscriptionStorage) All() map[string]domain.Subscription {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.Subscriptions
+
+	out := make(map[string]domain.Subscription, len(s.Subscriptions))
+	for id, sub := range s.Subscriptions {
+		out[id] = sub
+	}
+	return out
 }
 
 func (s *SubscriptionStorage) SetUpdatedSince(t *time.Time) {

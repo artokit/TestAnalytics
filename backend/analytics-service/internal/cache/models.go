@@ -3,11 +3,27 @@ package cache
 import "time"
 
 type UserMetrics struct {
-	UserId       string      `json:"user_id"`
-	Ltv          int64       `json:"ltv"`
-	FirstPlanId  int16       `json:"first_plan_id"`
-	FirstSubDate time.Time   `json:"first_sub_date"`
-	Chain        []ChainItem `json:"chain"`
+	UserId          string      `json:"user_id"`
+	Ltv             int64       `json:"ltv"`
+	TelegramId      int64       `json:"telegram_id"`
+	PaymentsCount   int         `json:"payments_count"`
+	FirstPlanId     int16       `json:"first_plan_id"`
+	FirstPlanMonths int         `json:"first_plan_months"`
+	FirstSubDate    time.Time   `json:"first_sub_date"`
+	SubStatus       string      `json:"sub_status"`
+	Chain           []ChainItem `json:"chain"`
+}
+
+type PlanLtvPayload struct {
+	PlanId       int16 `json:"plan_id"`
+	Users        int   `json:"users"`
+	AvgLtv       int64 `json:"avg_ltv"`
+	TotalRevenue int64 `json:"total_revenue"`
+}
+
+type LtvByPlanPayload struct {
+	DataAsOf time.Time        `json:"data_as_of"`
+	Plans    []PlanLtvPayload `json:"plans"`
 }
 
 type ChainItem struct {

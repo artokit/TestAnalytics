@@ -15,7 +15,7 @@ var ErrNotFound = errors.New("cache: snapshot not found")
 const (
 	summaryKey     = "analytics:ltv:summary"
 	retentionKey   = "analytics:retention"
-	userMetricsKey = "analytics:users:metrics"
+	userMetricsKey = "analytics:users:metrics:v3"
 	computedPrefix = "analytics:computed:"
 )
 

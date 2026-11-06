@@ -171,7 +171,7 @@ func (s *Service) poll(ctx context.Context) {
 		"plans", len(plansNow),
 	)
 
-	if err := s.metricsSvc.Recalculate(ctx, usersNow, paymentsNow, subsNow, time.Now().UTC()); err != nil {
+	if err := s.metricsSvc.Recalculate(ctx, usersNow, paymentsNow, subsNow, plansNow, time.Now().UTC()); err != nil {
 		s.logger.Error("metrics: recalculation failed", "error", err)
 	}
 }

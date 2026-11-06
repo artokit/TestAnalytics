@@ -28,7 +28,12 @@ func (s *UserStorage) Merge(users []domain.User) {
 func (s *UserStorage) All() map[string]domain.User {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.Users
+
+	out := make(map[string]domain.User, len(s.Users))
+	for id, u := range s.Users {
+		out[id] = u
+	}
+	return out
 }
 
 func (s *UserStorage) SetUpdatedSince(t *time.Time) {

@@ -42,6 +42,10 @@ services:
     image: users-service:latest
     container_name: users-service
     restart: unless-stopped
+    environment:
+      MOCK_ERROR_RATE_500: ${MOCK_ERROR_RATE_500:-0.05}
+      MOCK_ERROR_RATE_429: ${MOCK_ERROR_RATE_429:-0.05}
+      MOCK_RETRY_AFTER: ${MOCK_RETRY_AFTER:-5s}
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,6 +63,10 @@ services:
     image: payments-service:latest
     container_name: payments-service
     restart: unless-stopped
+    environment:
+      MOCK_ERROR_RATE_500: ${MOCK_ERROR_RATE_500:-0.05}
+      MOCK_ERROR_RATE_429: ${MOCK_ERROR_RATE_429:-0.05}
+      MOCK_RETRY_AFTER: ${MOCK_RETRY_AFTER:-5s}
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,6 +84,10 @@ services:
     image: subscriptions-service:latest
     container_name: subscriptions-service
     restart: unless-stopped
+    environment:
+      MOCK_ERROR_RATE_500: ${MOCK_ERROR_RATE_500:-0.05}
+      MOCK_ERROR_RATE_429: ${MOCK_ERROR_RATE_429:-0.05}
+      MOCK_RETRY_AFTER: ${MOCK_RETRY_AFTER:-5s}
     depends_on:
       postgres:
         condition: service_healthy

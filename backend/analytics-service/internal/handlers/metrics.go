@@ -118,13 +118,47 @@ func GetRetention(readService *services.MetricsReadService, syncer *worker.Servi
 
 // GetLtvByPlan godoc
 // @Summary      LTV по тарифу первой подписки
-// @Description  Стаб
+// @Description  Средний LTV, число пользователей и выручка по тарифам первой подписки когорты. from/to фильтруют когорту по дате первой подписки (RFC3339)
 // @Produce      json
+// @Param        from query string false "Начало когорты (RFC3339)"
+// @Param        to   query string false "Конец когорты (RFC3339)"
+// @Success      200 {object} response.LtvByPlanResponse
+// @Success      304
+// @Failure      400 {object} httputil.ErrorResponse
 // @Failure      503 {string} string "снимок ещё не собран"
 // @Router       /metrics/ltv/by-plan [get]
-func GetLtvByPlan() http.HandlerFunc {
+func GetLtvByPlan(readService *services.MetricsReadService, syncer *worker.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		snapshotNotReady(w)
+		filter, err := request.GetMetricsFilter(r)
+		if err != nil {
+			httputil.WriteError(w, err, http.StatusBadRequest)
+			return
+		}
+
+		byPlan, err := readService.LtvByPlan(r.Context(), filter.From, filter.To)
+		if err != nil {
+			if errors.Is(err, services.ErrSnapshotNotReady) {
+				snapshotNotReady(w)
+				return
+			}
+			httputil.WriteError(w, err, http.StatusInternalServerError)
+			return
+		}
+
+		plans := make([]response.PlanLtv, 0, len(byPlan.Plans))
+		for _, plan := range byPlan.Plans {
+			plans = append(plans, response.PlanLtv{
+				PlanId:       plan.PlanId,
+				Users:        plan.Users,
+				AvgLtv:       plan.AvgLtv,
+				TotalRevenue: plan.TotalRevenue,
+			})
+		}
+
+		writeCached(w, r, byPlan.DataAsOf, syncer.NextPoll(), response.LtvByPlanResponse{
+			DataAsOf: byPlan.DataAsOf,
+			Plans:    plans,
+		})
 	}
 }
 

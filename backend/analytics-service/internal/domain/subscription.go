@@ -3,14 +3,14 @@ package domain
 import "time"
 
 type Subscription struct {
-	Id           string    `json:"id"`
-	UserId       string    `json:"user_id"`
-	PlanId       int16     `json:"plan_id"`
-	PeriodStart  time.Time `json:"period_start"`
-	PeriodEnd    time.Time `json:"period_end"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	Id          string    `json:"id"`
+	UserId      string    `json:"user_id"`
+	PlanId      int16     `json:"plan_id"`
+	PeriodStart time.Time `json:"period_start"`
+	PeriodEnd   time.Time `json:"period_end"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type SubscriptionsPage struct {

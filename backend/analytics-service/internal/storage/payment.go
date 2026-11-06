@@ -28,7 +28,12 @@ func (s *PaymentStorage) Merge(payments []domain.Payment) {
 func (s *PaymentStorage) All() map[string]domain.Payment {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.Payments
+
+	out := make(map[string]domain.Payment, len(s.Payments))
+	for id, p := range s.Payments {
+		out[id] = p
+	}
+	return out
 }
 
 func (s *PaymentStorage) SetUpdatedSince(t *time.Time) {

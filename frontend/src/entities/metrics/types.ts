@@ -10,6 +10,18 @@ export interface LtvSummary {
   metrics: LtvSummaryMetrics
 }
 
+export interface PlanLtv {
+  plan_id: number
+  users: number
+  avg_ltv: number
+  total_revenue: number
+}
+
+export interface LtvByPlan {
+  data_as_of: string
+  plans: PlanLtv[]
+}
+
 export interface RetentionPeriod {
   period: number
   eligible: number
@@ -49,4 +61,15 @@ export type Currency = 'RUB' | 'USDT' | 'SOL'
 export interface CurrencyRates {
   base: string
   prices: Record<string, number>
+}
+
+export type SubscriptionStatus = 'active' | 'expired' | 'canceled' | 'none'
+
+export interface UserLtv {
+  user_id: string
+  telegram_id: number
+  first_plan_id: number
+  ltv: number
+  payments_count: number
+  current_status: string
 }
