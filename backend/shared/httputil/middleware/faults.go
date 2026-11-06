@@ -5,7 +5,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
-	"shared/httputil"
+	"test_analytics/shared/httputil"
 	"time"
 )
 

@@ -4,11 +4,13 @@ linters:
   default: standard
   enable:
     - misspell
+  exclusions:
+    paths:
+      - docs
 
 formatters:
   enable:
     - gofmt
-
-issues:
-  exclude-dirs:
-    - docs
+  exclusions:
+    paths:
+      - docs
