@@ -1,47 +1,53 @@
 package config
 
 import (
-	"fmt"
 	"time"
 
 	"shared/config"
 )
 
 type RedisConfig struct {
-	Address string `env:"REDIS_ADDRESS" envDefault:"redis:6379"`
-}
-
-type SyncConfig struct {
-	UsersURL         string `env:"SYNC_USERS_URL" envDefault:"http://users-service:80"`
-	PaymentsURL      string `env:"SYNC_PAYMENTS_URL" envDefault:"http://payments-service:80"`
-	SubscriptionsURL string `env:"SYNC_SUBSCRIPTIONS_URL" envDefault:"http://subscriptions-service:80"`
-	IntervalRaw      string `env:"SYNC_INTERVAL"`
-	Interval         time.Duration
+	Address string
 }
 
 type Config struct {
-	Address string      `env:"ANALYTICS_ADDRESS" envDefault:"0.0.0.0"`
-	Port    int         `env:"ANALYTICS_PORT" envDefault:"80"`
+	Address string
+	Port    int
 	Redis   RedisConfig
 	Sync    SyncConfig
+}
+
+type SyncConfig struct {
+	UsersURL         string
+	PaymentsURL      string
+	SubscriptionsURL string
+	Interval         time.Duration
 }
 
 const defaultSyncInterval = 10 * time.Minute
 
 func NewConfig() (*Config, error) {
-	var cfg Config
-	if err := config.Load(&cfg); err != nil {
+	port, err := config.Int("ANALYTICS_PORT", 80)
+	if err != nil {
 		return nil, err
 	}
 
-	cfg.Sync.Interval = defaultSyncInterval
-	if cfg.Sync.IntervalRaw != "" {
-		interval, err := time.ParseDuration(cfg.Sync.IntervalRaw)
-		if err != nil {
-			return nil, fmt.Errorf("config: SYNC_INTERVAL: %w", err)
-		}
-		cfg.Sync.Interval = interval
+	interval, err := config.Duration("SYNC_INTERVAL", defaultSyncInterval)
+	if err != nil {
+		return nil, err
 	}
 
-	return &cfg, nil
+	return &Config{
+		Address: config.String("ANALYTICS_ADDRESS", "0.0.0.0"),
+		Port:    port,
+		Redis: RedisConfig{
+			Address: config.String("REDIS_ADDRESS", "redis:6379"),
+		},
+		Sync: SyncConfig{
+			UsersURL:         config.String("SYNC_USERS_URL", "http://users-service:80"),
+			PaymentsURL:      config.String("SYNC_PAYMENTS_URL", "http://payments-service:80"),
+			SubscriptionsURL: config.String("SYNC_SUBSCRIPTIONS_URL", "http://subscriptions-service:80"),
+			Interval:         interval,
+		},
+	}, nil
 }

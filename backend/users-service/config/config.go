@@ -7,19 +7,22 @@ type DatabaseConfig struct {
 }
 
 type Config struct {
-	Address      string `env:"USERS_ADDRESS" envDefault:"0.0.0.0"`
-	Port         int    `env:"USERS_PORT" envDefault:"80"`
-	DatabaseName string `env:"USERS_DB_NAME" envDefault:"users-service"`
-	Database     DatabaseConfig
+	Address  string
+	Port     int
+	Database DatabaseConfig
 }
 
 func New() (*Config, error) {
-	var cfg Config
-	if err := config.Load(&cfg); err != nil {
+	port, err := config.Int("USERS_PORT", 80)
+	if err != nil {
 		return nil, err
 	}
 
-	cfg.Database.ConnectionString = config.PostgresDSN(cfg.DatabaseName)
-
-	return &cfg, nil
+	return &Config{
+		Address: config.String("USERS_ADDRESS", "0.0.0.0"),
+		Port:    port,
+		Database: DatabaseConfig{
+			ConnectionString: config.PostgresDSN(config.String("USERS_DB_NAME", "users-service")),
+		},
+	}, nil
 }

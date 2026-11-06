@@ -7,19 +7,22 @@ type DatabaseConfig struct {
 }
 
 type Config struct {
-	Address      string `env:"PAYMENTS_ADDRESS" envDefault:"0.0.0.0"`
-	Port         int    `env:"PAYMENTS_PORT" envDefault:"80"`
-	DatabaseName string `env:"PAYMENTS_DB_NAME" envDefault:"payments-service"`
-	Database     DatabaseConfig
+	Address  string
+	Port     int
+	Database DatabaseConfig
 }
 
 func NewConfig() (*Config, error) {
-	var cfg Config
-	if err := config.Load(&cfg); err != nil {
+	port, err := config.Int("PAYMENTS_PORT", 80)
+	if err != nil {
 		return nil, err
 	}
 
-	cfg.Database.ConnectionString = config.PostgresDSN(cfg.DatabaseName)
-
-	return &cfg, nil
+	return &Config{
+		Address: config.String("PAYMENTS_ADDRESS", "0.0.0.0"),
+		Port:    port,
+		Database: DatabaseConfig{
+			ConnectionString: config.PostgresDSN(config.String("PAYMENTS_DB_NAME", "payments-service")),
+		},
+	}, nil
 }

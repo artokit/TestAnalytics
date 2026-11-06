@@ -7,19 +7,22 @@ type DatabaseConfig struct {
 }
 
 type Config struct {
-	Address      string `env:"SUBSCRIPTIONS_ADDRESS" envDefault:"0.0.0.0"`
-	Port         int    `env:"SUBSCRIPTIONS_PORT" envDefault:"80"`
-	DatabaseName string `env:"SUBSCRIPTIONS_DB_NAME" envDefault:"subscriptions-service"`
-	Database     DatabaseConfig
+	Address  string
+	Port     int
+	Database DatabaseConfig
 }
 
 func NewConfig() (*Config, error) {
-	var cfg Config
-	if err := config.Load(&cfg); err != nil {
+	port, err := config.Int("SUBSCRIPTIONS_PORT", 80)
+	if err != nil {
 		return nil, err
 	}
 
-	cfg.Database.ConnectionString = config.PostgresDSN(cfg.DatabaseName)
-
-	return &cfg, nil
+	return &Config{
+		Address: config.String("SUBSCRIPTIONS_ADDRESS", "0.0.0.0"),
+		Port:    port,
+		Database: DatabaseConfig{
+			ConnectionString: config.PostgresDSN(config.String("SUBSCRIPTIONS_DB_NAME", "subscriptions-service")),
+		},
+	}, nil
 }
