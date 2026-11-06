@@ -79,33 +79,43 @@ jobs:
     needs: [lint, test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
-    env:
-      DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
     steps:
-      - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          script: |
-            set -e
-            cd $DEPLOY_DIR
-            git fetch origin --prune
-            git reset --hard origin/${{ github.ref_name }}
-            docker compose up --build -d
-            cid=$(docker compose ps -q analytics-service)
-            for i in $(seq 1 60); do
-              st=$(docker inspect -f '{{.State.Health.Status}}' "$cid")
-              echo "analytics health: $st"
-              if [ "$st" = "healthy" ]; then break; fi
-              if [ "$st" = "unhealthy" ]; then docker compose logs analytics-service; exit 1; fi
-              sleep 5
-            done
-            if [ "$st" != "healthy" ]; then
-              docker compose logs analytics-service
-              exit 1
-            fi
-            docker image prune -f
-            docker compose ps
+      - uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Pack repository
+        run: git archive --format=tar -o /tmp/deploy.tar HEAD
+
+      - name: Deploy files and start stack
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          SSH_DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
+        run: |
+          sshpass -p "$SSH_PASSWORD" scp -o StrictHostKeyChecking=no -P "$SSH_PORT" /tmp/deploy.tar "$SSH_USER@$SSH_HOST:/tmp/deploy.tar"
+
+          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "SERVER_DIR='$SSH_DEPLOY_DIR' bash -s" <<'REMOTE'
+          set -e
+          mkdir -p "$SERVER_DIR"
+          tar xf /tmp/deploy.tar -C "$SERVER_DIR"
+          cd "$SERVER_DIR"
+          docker compose up --build -d
+          cid=$(docker compose ps -q analytics-service)
+          for i in $(seq 1 60); do
+            st=$(docker inspect -f '{{.State.Health.Status}}' "$cid")
+            echo "analytics health: $st"
+            if [ "$st" = "healthy" ]; then break; fi
+            if [ "$st" = "unhealthy" ]; then docker compose logs analytics-service; exit 1; fi
+            sleep 5
+          done
+          if [ "$st" != "healthy" ]; then
+            docker compose logs analytics-service
+            exit 1
+          fi
+          docker image prune -f
+          docker compose ps
+          REMOTE
