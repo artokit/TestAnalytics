@@ -48,16 +48,43 @@ jobs:
         run: go test -race ./...
 
   compose:
-    name: docker compose up --build
+    name: docker compose up --build on test server
+    needs: [lint, test]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build and start
-        run: docker compose up --build -d
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
 
-      - name: Wait for analytics healthcheck
+      - name: Pack repository
+        run: git archive --format=tar -o /tmp/deploy.tar HEAD
+
+      - name: Docker compose up --build on server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          SSH_DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
         run: |
+          sshpass -p "$SSH_PASSWORD" scp -o StrictHostKeyChecking=no -P "$SSH_PORT" /tmp/deploy.tar "$SSH_USER@$SSH_HOST:/tmp/deploy.tar"
+
+          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "SERVER_DIR='$SSH_DEPLOY_DIR' bash -s" <<'REMOTE'
+          set -e
+          mkdir -p "$SERVER_DIR"
+          tar xf /tmp/deploy.tar -C "$SERVER_DIR"
+          cd "$SERVER_DIR"
+          if ! docker compose version >/dev/null 2>&1; then
+            echo "installing docker compose plugin"
+            mkdir -p ~/.docker/cli-plugins
+            curl -fsSL -o ~/.docker/cli-plugins/docker-compose https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
+            chmod +x ~/.docker/cli-plugins/docker-compose
+            docker compose version
+          fi
+
+          docker compose up --build -d
           cid=$(docker compose ps -q analytics-service)
           for i in $(seq 1 60); do
             st=$(docker inspect -f '{{.State.Health.Status}}' "$cid")
@@ -69,3 +96,4 @@ jobs:
           echo "analytics did not become healthy in time"
           docker compose logs analytics-service
           exit 1
+          REMOTE

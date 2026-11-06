@@ -8,14 +8,11 @@ COPY seeder-service/go.mod seeder-service/go.sum ./seeder-service/
 
 WORKDIR /src/seeder-service
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    go mod download
+RUN go mod download
 
 COPY seeder-service/ ./
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build \
+RUN CGO_ENABLED=0 GOOS=linux go build \
       -trimpath \
       -ldflags="-s -w" \
       -o /bin/seeder \

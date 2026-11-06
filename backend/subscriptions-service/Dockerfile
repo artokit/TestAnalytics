@@ -9,15 +9,11 @@ COPY subscriptions-service/go.mod subscriptions-service/go.sum ./subscriptions-s
 
 WORKDIR /src/subscriptions-service
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go mod download
+RUN go mod download
 
 COPY subscriptions-service/ ./
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build \
+RUN CGO_ENABLED=0 GOOS=linux go build \
       -trimpath \
       -ldflags="-s -w" \
       -o /out/subscriptions-service \
