@@ -103,6 +103,13 @@ jobs:
           mkdir -p "$SERVER_DIR"
           tar xf /tmp/deploy.tar -C "$SERVER_DIR"
           cd "$SERVER_DIR"
+          if ! docker compose version >/dev/null 2>&1; then
+            echo "installing docker compose plugin"
+            mkdir -p ~/.docker/cli-plugins
+            curl -fsSL -o ~/.docker/cli-plugins/docker-compose https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
+            chmod +x ~/.docker/cli-plugins/docker-compose
+            docker compose version
+          fi
           docker compose up --build -d
           cid=$(docker compose ps -q analytics-service)
           for i in $(seq 1 60); do
