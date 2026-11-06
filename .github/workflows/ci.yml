@@ -110,6 +110,7 @@ jobs:
             chmod +x ~/.docker/cli-plugins/docker-compose
             docker compose version
           fi
+          export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1
           docker compose up --build -d
           cid=$(docker compose ps -q analytics-service)
           for i in $(seq 1 60); do
