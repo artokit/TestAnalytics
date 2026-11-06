@@ -44,10 +44,6 @@ services:
     image: users-service:latest
     container_name: users-service
     restart: unless-stopped
-    environment:
-      ENV: prod
-      CONFIG_FILE: /app/.config/prod.json
-      SEED: ${SEED:-100}
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,8 +61,6 @@ services:
     image: payments-service:latest
     container_name: payments-service
     restart: unless-stopped
-    environment:
-      ENV: prod
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,8 +78,6 @@ services:
     image: subscriptions-service:latest
     container_name: subscriptions-service
     restart: unless-stopped
-    environment:
-      ENV: prod
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,7 +96,6 @@ services:
     container_name: analytics-service
     restart: unless-stopped
     environment:
-      ENV: prod
       SYNC_INTERVAL: ${SYNC_INTERVAL:-10m}
     ports:
       - "8004:80"

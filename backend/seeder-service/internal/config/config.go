@@ -2,8 +2,8 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"strconv"
+
+	"shared/config"
 )
 
 const (
@@ -14,6 +14,13 @@ const (
 	usersDBDefault   = "user=postgres password=postgres host=localhost port=5432 dbname=users-service sslmode=disable"
 	subsDBDefault    = "user=postgres password=postgres host=localhost port=5432 dbname=subscriptions-service sslmode=disable"
 	paysDBDefault    = "user=postgres password=postgres host=localhost port=5432 dbname=payments-service sslmode=disable"
+)
+
+const (
+	maxBatchSize     = 4096
+	minHistoryMonths = 18
+	maxHistoryMonths = 24
+	minUsers         = 10000
 )
 
 type Config struct {
@@ -28,69 +35,40 @@ type Config struct {
 }
 
 func FromEnv() (*Config, error) {
+	seed, err := config.Int64("SEED", defaultSeed)
+	if err != nil {
+		return nil, err
+	}
+
+	users, err := config.Int("SEED_USERS", defaultUsers)
+	if err != nil {
+		return nil, err
+	}
+
+	batchSize, err := config.Int("SEED_BATCH_SIZE", defaultBatchSize)
+	if err != nil {
+		return nil, err
+	}
+
+	historyMonths, err := config.Int("SEED_HISTORY_MONTHS", defaultHistory)
+	if err != nil {
+		return nil, err
+	}
+
+	force, err := config.Bool("FORCE", false)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
-		Seed:                defaultSeed,
-		Users:               defaultUsers,
-		BatchSize:           defaultBatchSize,
-		HistoryMonths:       defaultHistory,
-		DatabaseDSN:         usersDBDefault,
-		SubsDatabaseDSN:     subsDBDefault,
-		PaymentsDatabaseDSN: paysDBDefault,
-	}
-
-	if v := os.Getenv("SEED"); v != "" {
-		seed, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("config: SEED: %w", err)
-		}
-		cfg.Seed = seed
-	}
-
-	if v := os.Getenv("SEED_USERS"); v != "" {
-		users, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, fmt.Errorf("config: SEED_USERS: %w", err)
-		}
-		cfg.Users = users
-	}
-
-	if v := os.Getenv("SEED_BATCH_SIZE"); v != "" {
-		batch, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, fmt.Errorf("config: SEED_BATCH_SIZE: %w", err)
-		}
-		cfg.BatchSize = batch
-	}
-
-	if v := os.Getenv("SEED_HISTORY_MONTHS"); v != "" {
-		months, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, fmt.Errorf("config: SEED_HISTORY_MONTHS: %w", err)
-		}
-		cfg.HistoryMonths = months
-	}
-
-	if v := os.Getenv("DATABASE_DSN"); v != "" {
-		cfg.DatabaseDSN = v
-	}
-
-	if v := os.Getenv("DATABASE_DSN_SUBSCRIPTIONS"); v != "" {
-		cfg.SubsDatabaseDSN = v
-	}
-
-	if v := os.Getenv("DATABASE_DSN_PAYMENTS"); v != "" {
-		cfg.PaymentsDatabaseDSN = v
-	}
-
-	switch v := os.Getenv("FORCE"); v {
-	case "":
-		cfg.Force = false
-	case "1", "true", "True", "TRUE", "yes":
-		cfg.Force = true
-	case "0", "false", "False", "FALSE", "no":
-		cfg.Force = false
-	default:
-		return nil, fmt.Errorf("config: FORCE: неизвестное значение %q", v)
+		Seed:                seed,
+		Users:               users,
+		BatchSize:           batchSize,
+		HistoryMonths:       historyMonths,
+		DatabaseDSN:         config.String("DATABASE_DSN", usersDBDefault),
+		SubsDatabaseDSN:     config.String("DATABASE_DSN_SUBSCRIPTIONS", subsDBDefault),
+		PaymentsDatabaseDSN: config.String("DATABASE_DSN_PAYMENTS", paysDBDefault),
+		Force:               force,
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -99,15 +77,6 @@ func FromEnv() (*Config, error) {
 
 	return cfg, nil
 }
-
-const maxBatchSize = 4096
-
-const (
-	minHistoryMonths = 18
-	maxHistoryMonths = 24
-)
-
-const minUsers = 10000
 
 func (c *Config) validate() error {
 	if c.Users < minUsers {

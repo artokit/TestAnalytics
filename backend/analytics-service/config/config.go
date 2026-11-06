@@ -1,53 +1,53 @@
 package config
 
 import (
-	"fmt"
-	"os"
 	"time"
 
 	"shared/config"
 )
 
 type RedisConfig struct {
-	Address string `json:"address"`
+	Address string
 }
 
 type Config struct {
-	Address string      `json:"address"`
-	Port    int         `json:"port"`
-	Redis   RedisConfig `json:"redis"`
-	Sync    SyncConfig  `json:"sync"`
+	Address string
+	Port    int
+	Redis   RedisConfig
+	Sync    SyncConfig
 }
 
 type SyncConfig struct {
-	UsersURL         string        `json:"users_url"`
-	PaymentsURL      string        `json:"payments_url"`
-	SubscriptionsURL string        `json:"subscriptions_url"`
-	IntervalRaw      string        `json:"interval"`
-	Interval         time.Duration `json:"-"`
+	UsersURL         string
+	PaymentsURL      string
+	SubscriptionsURL string
+	Interval         time.Duration
 }
 
 const defaultSyncInterval = 10 * time.Minute
 
 func NewConfig() (*Config, error) {
-	var cfg Config
-	if err := config.LoadConfig[Config](&cfg); err != nil {
+	port, err := config.Int("ANALYTICS_PORT", 80)
+	if err != nil {
 		return nil, err
 	}
 
-	intervalRaw := cfg.Sync.IntervalRaw
-	if v := os.Getenv("SYNC_INTERVAL"); v != "" {
-		intervalRaw = v
-	}
-	if intervalRaw == "" {
-		cfg.Sync.Interval = defaultSyncInterval
-	} else {
-		interval, err := time.ParseDuration(intervalRaw)
-		if err != nil {
-			return nil, fmt.Errorf("config: SYNC_INTERVAL: %w", err)
-		}
-		cfg.Sync.Interval = interval
+	interval, err := config.Duration("SYNC_INTERVAL", defaultSyncInterval)
+	if err != nil {
+		return nil, err
 	}
 
-	return &cfg, nil
+	return &Config{
+		Address: config.String("ANALYTICS_ADDRESS", "0.0.0.0"),
+		Port:    port,
+		Redis: RedisConfig{
+			Address: config.String("REDIS_ADDRESS", "redis:6379"),
+		},
+		Sync: SyncConfig{
+			UsersURL:         config.String("SYNC_USERS_URL", "http://users-service:80"),
+			PaymentsURL:      config.String("SYNC_PAYMENTS_URL", "http://payments-service:80"),
+			SubscriptionsURL: config.String("SYNC_SUBSCRIPTIONS_URL", "http://subscriptions-service:80"),
+			Interval:         interval,
+		},
+	}, nil
 }

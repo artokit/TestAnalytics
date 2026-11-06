@@ -46,7 +46,7 @@ services:
     working_dir: /src/users-service
     restart: unless-stopped
     environment:
-      ENV: prod
+      USERS_DB_NAME: users
     volumes:
       - ./backend:/src
       - go_mod_cache:/go/pkg/mod
@@ -68,8 +68,6 @@ services:
     image: golang:1.27-alpine
     working_dir: /src/payments-service
     restart: unless-stopped
-    environment:
-      ENV: prod
     volumes:
       - ./backend:/src
       - go_mod_cache:/go/pkg/mod
@@ -91,8 +89,6 @@ services:
     image: golang:1.27-alpine
     working_dir: /src/subscriptions-service
     restart: unless-stopped
-    environment:
-      ENV: prod
     volumes:
       - ./backend:/src
       - go_mod_cache:/go/pkg/mod
@@ -114,8 +110,6 @@ services:
     image: golang:1.27-alpine
     working_dir: /src/analytics-service
     restart: unless-stopped
-    environment:
-      ENV: prod
     volumes:
       - ./backend:/src
       - go_mod_cache:/go/pkg/mod
