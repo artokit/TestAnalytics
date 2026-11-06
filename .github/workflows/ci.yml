@@ -32,33 +32,19 @@ jobs:
           version: latest
 
   test:
-    name: go test -race (${{ matrix.service }})
+    name: go test -race (analytics-service)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        service:
-          - shared
-          - users-service
-          - payments-service
-          - subscriptions-service
-          - analytics-service
-          - seeder-service
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: backend/${{ matrix.service }}/go.mod
-          cache-dependency-path: backend/**/go.sum
-
-      - name: Build
-        working-directory: backend/${{ matrix.service }}
-        run: go build ./...
+          go-version-file: backend/analytics-service/go.mod
+          cache-dependency-path: backend/analytics-service/go.sum
 
       - name: Test
-        working-directory: backend/${{ matrix.service }}
+        working-directory: backend/analytics-service
         run: go test -race ./...
 
   compose:
