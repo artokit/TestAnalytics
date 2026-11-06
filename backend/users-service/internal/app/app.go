@@ -40,6 +40,7 @@ func (b *ServerBuilder) Build() *http.Server {
 	}
 
 	faults := middleware.NewFaults(cfg.ErrorRate500, cfg.ErrorRate429, cfg.RetryAfter)
+	b.router.Use(middleware.NewMetrics("users-service").Middleware)
 	b.router.Use(middleware.HealthSafe(faults.Middleware))
 
 	b.initHandlers()
@@ -62,4 +63,5 @@ func (b *ServerBuilder) initHandlers() {
 	b.router.HandleFunc("/users", handlers.GetUsers(usersService)).Methods(http.MethodGet)
 
 	b.router.HandleFunc("/healthz", httputil.Healthz()).Methods(http.MethodGet)
+	b.router.Handle("/metrics", httputil.PrometheusHandler()).Methods(http.MethodGet)
 }

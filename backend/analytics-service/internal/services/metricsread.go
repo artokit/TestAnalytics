@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
 	"analytics-service/internal/cache"
+	"analytics-service/internal/domain"
+	"analytics-service/internal/handlers/response"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -18,12 +21,14 @@ type MetricsReadService struct {
 	cache    cache.Cache
 	ttl      time.Duration
 	inflight singleflight.Group
+	logger   *slog.Logger
 }
 
-func NewMetricsReadService(cache cache.Cache, ttl time.Duration) *MetricsReadService {
+func NewMetricsReadService(cache cache.Cache, ttl time.Duration, logger *slog.Logger) *MetricsReadService {
 	return &MetricsReadService{
-		cache: cache,
-		ttl:   ttl,
+		cache:  cache,
+		ttl:    ttl,
+		logger: logger,
 	}
 }
 
@@ -170,6 +175,44 @@ func ltvByPlanFromUsers(users []cache.UserMetrics, now time.Time) cache.LtvByPla
 		DataAsOf: now,
 		Plans:    plans,
 	}
+}
+
+func (s *MetricsReadService) UserLtvByTelegram(
+	ctx context.Context,
+	telegramId int64,
+) (response.UserLtvResponse, time.Time, error) {
+	snapshot, err := s.cache.GetUserMetrics(ctx)
+	if errors.Is(err, cache.ErrNotFound) {
+		return response.UserLtvResponse{}, time.Time{}, ErrSnapshotNotReady
+	}
+	if err != nil {
+		s.logLookupError(ctx, err)
+		return response.UserLtvResponse{}, time.Time{}, domain.ErrGetUserLtv
+	}
+
+	for _, u := range snapshot.Users {
+		if u.TelegramId != telegramId {
+			continue
+		}
+
+		return response.UserLtvResponse{
+			UserId:        u.UserId,
+			TelegramId:    u.TelegramId,
+			FirstPlanId:   u.FirstPlanId,
+			Ltv:           u.Ltv,
+			PaymentsCount: u.PaymentsCount,
+			CurrentStatus: u.SubStatus,
+		}, snapshot.GeneratedAt, nil
+	}
+
+	return response.UserLtvResponse{}, time.Time{}, domain.ErrUserNotFound
+}
+
+func (s *MetricsReadService) logLookupError(ctx context.Context, err error) {
+	if s.logger == nil {
+		return
+	}
+	s.logger.ErrorContext(ctx, "analytics-service: user ltv lookup failed", "error", err)
 }
 
 func summaryKey(from, to *time.Time, generatedAt time.Time) string {

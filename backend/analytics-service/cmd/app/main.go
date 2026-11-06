@@ -48,7 +48,7 @@ func main() {
 
 	cacheRepo := cache.NewCache(rdb, 24*time.Hour)
 	metricsService := services.NewMetricsService(cacheRepo)
-	metricsRead := services.NewMetricsReadService(cacheRepo, cfg.Sync.Interval)
+	metricsRead := services.NewMetricsReadService(cacheRepo, cfg.Sync.Interval, logger)
 	userStorage := storage.NewUserStorage()
 	paymentStorage := storage.NewPaymentStorage()
 	subStorage := storage.NewSubscriptionStorage()

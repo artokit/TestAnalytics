@@ -1,15 +1,20 @@
 import type {
   CurrencyRates,
+  LtvByPlan,
   LtvSummary,
   Plan,
   Retention,
   SyncStatus,
+  UserLtv,
 } from '@/entities/metrics/types'
 import { getWithEtag, http } from '@/shared/api/http'
 
 export const metricsApi = {
   async summary(from?: string, to?: string): Promise<LtvSummary> {
     return getWithEtag<LtvSummary>('/metrics/ltv/summary', { from: from ?? '', to: to ?? '' })
+  },
+  async ltvByPlan(from?: string, to?: string): Promise<LtvByPlan> {
+    return getWithEtag<LtvByPlan>('/metrics/ltv/by-plan', { from: from ?? '', to: to ?? '' })
   },
   async retention(
     planId: number,
@@ -27,6 +32,9 @@ export const metricsApi = {
   async status(): Promise<SyncStatus> {
     const res = await http.get<SyncStatus>('/status')
     return res.data
+  },
+  async userLtv(telegramId: number): Promise<UserLtv> {
+    return getWithEtag<UserLtv>(`/users/by-telegram/${telegramId}/ltv`)
   },
   async currency(): Promise<CurrencyRates> {
     const res = await http.get<CurrencyRates>('/currency')

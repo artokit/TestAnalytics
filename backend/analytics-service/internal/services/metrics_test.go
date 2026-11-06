@@ -2,12 +2,16 @@ package services
 
 import (
 	"context"
+	"errors"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"analytics-service/internal/cache"
 	"analytics-service/internal/domain"
+	"analytics-service/internal/handlers/response"
 )
 
 const testDay = 30 * 24 * time.Hour
@@ -25,7 +29,7 @@ func testPlans() map[int]domain.Plan {
 
 func TestBuildUserMetricsLtv(t *testing.T) {
 	base := testBase()
-	users := map[string]domain.User{"p": {}, "q": {}, "r": {}, "s": {}}
+	users := map[string]domain.User{"p": {Id: "p", TelegramId: 111}, "q": {Id: "q", TelegramId: 222}, "r": {}, "s": {}}
 	payments := map[string]domain.Payment{
 		"p1": {Id: "p1", UserId: "p", Amount: 500, Status: "succeeded"},
 		"p2": {Id: "p2", UserId: "p", Amount: 300, Status: "refunded"},
@@ -33,9 +37,9 @@ func TestBuildUserMetricsLtv(t *testing.T) {
 		"q1": {Id: "q1", UserId: "q", Amount: 100, Status: "refunded"},
 	}
 	subs := map[string]domain.Subscription{
-		"s1": {Id: "s1", UserId: "p", PlanId: 1, PeriodStart: base, PeriodEnd: base.Add(testDay)},
-		"s2": {Id: "s2", UserId: "p", PlanId: 2, PeriodStart: base.Add(testDay), PeriodEnd: base.Add(13 * testDay)},
-		"s3": {Id: "s3", UserId: "s", PlanId: 2, PeriodStart: base, PeriodEnd: base.Add(12 * testDay)},
+		"s1": {Id: "s1", UserId: "p", PlanId: 1, PeriodStart: base, PeriodEnd: base.Add(testDay), Status: "expired"},
+		"s2": {Id: "s2", UserId: "p", PlanId: 2, PeriodStart: base.Add(testDay), PeriodEnd: base.Add(13 * testDay), Status: "active"},
+		"s3": {Id: "s3", UserId: "s", PlanId: 2, PeriodStart: base, PeriodEnd: base.Add(12 * testDay), Status: "active"},
 	}
 
 	snapshot := buildUserMetrics(users, payments, subs, testPlans(), base)
@@ -59,11 +63,24 @@ func TestBuildUserMetricsLtv(t *testing.T) {
 	if u.FirstPlanId != 1 {
 		t.Errorf("FirstPlanId = %d, want 1", u.FirstPlanId)
 	}
+	if u.TelegramId != 111 {
+		t.Errorf("TelegramId = %d, want 111", u.TelegramId)
+	}
+	if u.PaymentsCount != 3 {
+		t.Errorf("PaymentsCount = %d, want 3", u.PaymentsCount)
+	}
+	if u.SubStatus != "active" {
+		t.Errorf("SubStatus = %q, want active", u.SubStatus)
+	}
 	if u.FirstPlanMonths != 1 {
 		t.Errorf("FirstPlanMonths = %d, want 1", u.FirstPlanMonths)
 	}
 	if len(u.Chain) != 2 || u.Chain[0].PlanId != 1 || u.Chain[1].PlanId != 2 {
 		t.Errorf("Chain = %+v, want monthly then annual", u.Chain)
+	}
+
+	if q := got["q"]; q.PaymentsCount != 1 {
+		t.Errorf("q PaymentsCount = %d, want 1", q.PaymentsCount)
 	}
 
 	if s := got["s"]; s.FirstPlanMonths != 12 {
@@ -340,9 +357,10 @@ func TestLtvByPlanFromUsers(t *testing.T) {
 }
 
 type fakeCache struct {
-	summary    cache.SummaryPayload
-	retentions []cache.RetentionPayload
-	snapshot   cache.UserMetricsSnapshot
+	summary        cache.SummaryPayload
+	retentions     []cache.RetentionPayload
+	snapshot       cache.UserMetricsSnapshot
+	userMetricsErr error
 }
 
 func (f *fakeCache) SaveSummary(_ context.Context, p cache.SummaryPayload) error {
@@ -361,12 +379,67 @@ func (f *fakeCache) SaveUserMetrics(_ context.Context, p cache.UserMetricsSnapsh
 }
 
 func (f *fakeCache) GetUserMetrics(context.Context) (cache.UserMetricsSnapshot, error) {
+	if f.userMetricsErr != nil {
+		return cache.UserMetricsSnapshot{}, f.userMetricsErr
+	}
 	return f.snapshot, nil
 }
 
 func (f *fakeCache) SaveComputed(context.Context, string, any) error { return nil }
 
 func (f *fakeCache) GetComputed(context.Context, string, any) error { return cache.ErrNotFound }
+
+type slowCache struct {
+	fakeCache
+	computedDelay time.Duration
+	saveCalls     atomic.Int32
+}
+
+func (c *slowCache) GetComputed(context.Context, string, any) error {
+	time.Sleep(c.computedDelay)
+	return cache.ErrNotFound
+}
+
+func (c *slowCache) SaveComputed(context.Context, string, any) error {
+	c.saveCalls.Add(1)
+	return nil
+}
+
+func TestSummaryConcurrentRequests(t *testing.T) {
+	base := testBase()
+	snapshot := cache.UserMetricsSnapshot{
+		GeneratedAt: base.Add(24 * time.Hour),
+		Users: []cache.UserMetrics{
+			{UserId: "a", Ltv: 1000, FirstPlanId: 1, FirstSubDate: base},
+			{UserId: "b", Ltv: 1000, FirstPlanId: 1, FirstSubDate: base},
+		},
+	}
+
+	sleeper := &slowCache{fakeCache: fakeCache{snapshot: snapshot}, computedDelay: 10 * time.Millisecond}
+	svc := NewMetricsReadService(sleeper, time.Hour, nil)
+
+	const workers = 8
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			summary, err := svc.Summary(context.Background(), nil, nil)
+			if err != nil {
+				t.Errorf("summary error: %v", err)
+				return
+			}
+			if summary.AvgLtv != 1000 || summary.TotalRevenue != 2000 || summary.Users != 2 {
+				t.Errorf("unexpected summary %+v", summary)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if calls := sleeper.saveCalls.Load(); calls != 1 {
+		t.Errorf("SaveComputed called %d times, want 1 (singleflight)", calls)
+	}
+}
 
 func TestRecalculateSnapshot(t *testing.T) {
 	base := testBase()
@@ -399,6 +472,7 @@ func TestRecalculateSnapshot(t *testing.T) {
 	want := cache.UserMetrics{
 		UserId:          "u1",
 		Ltv:             500,
+		PaymentsCount:   2,
 		FirstPlanId:     1,
 		FirstPlanMonths: 1,
 		FirstSubDate:    base,
@@ -408,5 +482,68 @@ func TestRecalculateSnapshot(t *testing.T) {
 	}
 	if !reflect.DeepEqual(u, want) {
 		t.Errorf("user = %+v, want %+v", u, want)
+	}
+}
+
+func TestUserLtvByTelegram(t *testing.T) {
+	base := testBase()
+	generatedAt := base.Add(24 * time.Hour)
+
+	fc := &fakeCache{
+		snapshot: cache.UserMetricsSnapshot{
+			GeneratedAt: generatedAt,
+			Users: []cache.UserMetrics{
+				{
+					UserId:        "u1",
+					Ltv:           5000,
+					TelegramId:    111,
+					PaymentsCount: 2,
+					FirstPlanId:   1,
+					FirstSubDate:  base,
+					SubStatus:     "active",
+				},
+			},
+		},
+	}
+	svc := NewMetricsReadService(fc, time.Hour, nil)
+
+	got, version, err := svc.UserLtvByTelegram(context.Background(), 111)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := response.UserLtvResponse{
+		UserId:        "u1",
+		TelegramId:    111,
+		FirstPlanId:   1,
+		Ltv:           5000,
+		PaymentsCount: 2,
+		CurrentStatus: "active",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("response = %+v, want %+v", got, want)
+	}
+	if version != generatedAt {
+		t.Errorf("version = %v, want %v", version, generatedAt)
+	}
+
+	if _, _, err := svc.UserLtvByTelegram(context.Background(), 999); !errors.Is(err, domain.ErrUserNotFound) {
+		t.Errorf("unknown telegram err = %v, want ErrUserNotFound", err)
+	}
+}
+
+func TestUserLtvByTelegramErrors(t *testing.T) {
+	fc := &fakeCache{userMetricsErr: cache.ErrNotFound}
+	svc := NewMetricsReadService(fc, time.Hour, nil)
+
+	if _, _, err := svc.UserLtvByTelegram(context.Background(), 111); !errors.Is(err, ErrSnapshotNotReady) {
+		t.Errorf("empty cache err = %v, want ErrSnapshotNotReady", err)
+	}
+
+	fc = &fakeCache{userMetricsErr: errors.New("redis down")}
+	svc = NewMetricsReadService(fc, time.Hour, nil)
+
+	if _, _, err := svc.UserLtvByTelegram(context.Background(), 111); !errors.Is(err, domain.ErrGetUserLtv) {
+		t.Errorf("internal err = %v, want ErrGetUserLtv", err)
 	}
 }

@@ -51,7 +51,12 @@ func buildUserMetrics(
 	now time.Time,
 ) cache.UserMetricsSnapshot {
 	ltvByUser := make(map[string]int64, len(users))
+	paymentsByUser := make(map[string]int, len(users))
 	for _, p := range payments {
+		if _, ok := users[p.UserId]; !ok {
+			continue
+		}
+		paymentsByUser[p.UserId]++
 		if p.Status == "succeeded" {
 			ltvByUser[p.UserId] += p.Amount
 		}
@@ -74,8 +79,10 @@ func buildUserMetrics(
 
 	for userId := range users {
 		user := cache.UserMetrics{
-			UserId: userId,
-			Ltv:    ltvByUser[userId],
+			UserId:        userId,
+			Ltv:           ltvByUser[userId],
+			TelegramId:    users[userId].TelegramId,
+			PaymentsCount: paymentsByUser[userId],
 		}
 
 		chain := chains[userId]
@@ -84,6 +91,7 @@ func buildUserMetrics(
 			user.FirstPlanId = chain[0].PlanId
 			user.FirstSubDate = chain[0].PeriodStart
 			user.FirstPlanMonths = firstPlanMonths(planMonths, chain[0])
+			user.SubStatus = chain[len(chain)-1].Status
 			for _, row := range chain {
 				user.Chain = append(user.Chain, cache.ChainItem{
 					PlanId:      row.PlanId,

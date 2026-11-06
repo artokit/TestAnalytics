@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: golangci-lint (analytics-service)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/analytics-service/go.mod
+          cache-dependency-path: backend/**/go.sum
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          working-directory: backend/analytics-service
+          version: latest
+
+  test:
+    name: go test -race (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - shared
+          - users-service
+          - payments-service
+          - subscriptions-service
+          - analytics-service
+          - seeder-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/${{ matrix.service }}/go.mod
+          cache-dependency-path: backend/**/go.sum
+
+      - name: Build
+        working-directory: backend/${{ matrix.service }}
+        run: go build ./...
+
+      - name: Test
+        working-directory: backend/${{ matrix.service }}
+        run: go test -race ./...
+
+  compose:
+    name: docker compose up --build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start
+        run: docker compose up --build -d --wait
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v --remove-orphans

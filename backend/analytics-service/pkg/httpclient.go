@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
@@ -37,7 +38,11 @@ func (h HttpClient) Get[T any](ctx context.Context, url string) (Response[T], er
 	if err != nil {
 		return out, fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			slog.Error("analytics-service: close response body", "error", cerr)
+		}
+	}()
 
 	out.StatusCode = resp.StatusCode
 

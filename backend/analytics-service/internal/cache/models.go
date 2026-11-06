@@ -5,9 +5,12 @@ import "time"
 type UserMetrics struct {
 	UserId          string      `json:"user_id"`
 	Ltv             int64       `json:"ltv"`
+	TelegramId      int64       `json:"telegram_id"`
+	PaymentsCount   int         `json:"payments_count"`
 	FirstPlanId     int16       `json:"first_plan_id"`
 	FirstPlanMonths int         `json:"first_plan_months"`
 	FirstSubDate    time.Time   `json:"first_sub_date"`
+	SubStatus       string      `json:"sub_status"`
 	Chain           []ChainItem `json:"chain"`
 }
 
