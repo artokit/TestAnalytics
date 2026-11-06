@@ -76,13 +76,8 @@ jobs:
 
   deploy:
     name: deploy to test server
-<<<<<<< HEAD
-    needs: [lint, test, frontend]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
-=======
     needs: [lint, test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev')
->>>>>>> dbe38b5 (ci: fix deploy needs and deploy branches)
     runs-on: ubuntu-latest
     env:
       DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
