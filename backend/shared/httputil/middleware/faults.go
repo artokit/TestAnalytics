@@ -1,11 +1,11 @@
 package middleware
 
 import (
+	"encoding/json"
 	"errors"
 	"math/rand/v2"
 	"net/http"
 	"strconv"
-	"test_analytics/shared/httputil"
 	"time"
 )
 
@@ -34,6 +34,14 @@ func NewFaults(errorRate500, errorRate429 float64, retryAfter time.Duration) *Fa
 	}
 }
 
+func writeError(w http.ResponseWriter, message error, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(struct {
+		Error string `json:"error"`
+	}{Error: message.Error()})
+}
+
 func (f *Faults) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(randomDelay())
@@ -43,9 +51,9 @@ func (f *Faults) Middleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		case http.StatusTooManyRequests:
 			w.Header().Set("Retry-After", strconv.Itoa(int(f.config.RetryAfter.Seconds())))
-			httputil.WriteError(w, errors.New("too many requests"), status)
+			writeError(w, errors.New("too many requests"), status)
 		default:
-			httputil.WriteError(w, errors.New("simulated internal server error"), status)
+			writeError(w, errors.New("simulated internal server error"), status)
 		}
 	})
 }
