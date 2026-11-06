@@ -49,7 +49,7 @@ func (s *UserService) FetchUsers(ctx context.Context, updatedSince *time.Time) (
 		})
 		if err != nil {
 			s.logger.Error("failed to fetch data from users-service", "error", err)
-			return nil, fmt.Errorf("failed to fetch data from users-service")
+			return nil, fmt.Errorf("ошибка при получение данных из users-service")
 		}
 
 		users = append(users, p.Users...)

@@ -33,6 +33,16 @@ export function useRetention(planId: number, maxPeriods: number, range?: DateRan
   })
 }
 
+export function useCurrencyRates() {
+  return useQuery({
+    queryKey: ['metrics', 'currency'],
+    queryFn: metricsApi.currency,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    retry: 1,
+  })
+}
+
 export function useStatus() {
   return useQuery({
     queryKey: ['metrics', 'status'],
